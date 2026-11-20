@@ -64,3 +64,14 @@ create policy "programador libera acesso" on public.perfis for update to authent
 do $$ begin
   alter publication supabase_realtime add table public.docs;
 exception when duplicate_object then null; end $$;
+
+-- 5) Usuários que se cadastraram antes deste script: cria o perfil que faltou
+--    e, se ainda não houver programador, promove o primeiro cadastrado.
+insert into public.perfis (user_id, nome, email, papel)
+select u.id, coalesce(u.raw_user_meta_data->>'nome', split_part(u.email,'@',1)), u.email, 'pendente'
+from auth.users u
+where not exists (select 1 from public.perfis p where p.user_id = u.id);
+
+update public.perfis set papel = 'programador'
+where user_id = (select user_id from public.perfis order by criado_em limit 1)
+  and not exists (select 1 from public.perfis where papel = 'programador');
