@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head>
 <body>
@@ -195,7 +195,16 @@ body.dropping::after{content:"Solte a planilha aqui para atualizar";position:fix
 .btn-ico .lk{width:15px;height:15px}
 .fila-l .mv button{padding:2px 7px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
-@media (max-width:640px){nav.tabs{margin-left:0;width:100%}.who{width:100%}}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{touch-action:manipulation;overflow-x:hidden}
+@media (max-width:640px){
+  header.top{position:static}
+  nav.tabs{margin-left:0;width:100%;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  nav.tabs::-webkit-scrollbar{display:none}
+  nav.tabs a{white-space:nowrap;flex:0 0 auto}
+  .who{width:100%}
+  input,select,textarea{font-size:16px!important}
+}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 
