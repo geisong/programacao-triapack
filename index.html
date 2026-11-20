@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261120182442";</script>
+<script>window.APP_VERSAO="20261120183049";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -82,6 +82,18 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .btn-inicio:hover{filter:brightness(1.08)}
 .voltar{display:flex;gap:10px;flex-wrap:wrap;position:relative;z-index:1}
 .btn-inicio.alt{background:rgba(255,255,255,.12);color:#fff;box-shadow:none;border:1px solid rgba(255,255,255,.25)}
+.db-chart{display:flex;align-items:flex-end;gap:6px;height:220px;overflow-x:auto;padding:4px 2px 0}
+.db-col{flex:1 0 34px;max-width:64px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.db-track{position:relative;flex:1;width:100%;margin-top:18px}
+.db-bar{position:absolute;left:0;right:0;bottom:0;background:var(--brand);border-radius:5px 5px 0 0}
+.db-bar .db-v{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);padding-bottom:3px}
+.db-bar.zero{height:2px!important;background:var(--line)}
+.db-col{max-width:80px}
+.db-v{font-size:11px;font-weight:700;white-space:nowrap}
+.db-d{font-size:10px;color:var(--muted,#6b7280);text-align:center;line-height:1.2}
+.seg{display:flex;gap:4px;align-self:flex-end}
+.seg .btn{padding:6px 12px;font-size:13px}
+.seg .btn[aria-pressed="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
 .mqs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:16px}
 .mq{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;background:var(--surface);color:var(--fg,inherit);text-decoration:none;text-align:left;font:inherit;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s,background .12s;touch-action:manipulation;min-width:0}
 .mq:hover{border-color:var(--brand);box-shadow:0 4px 12px rgba(0,0,0,.1)}
@@ -381,14 +393,14 @@ body{touch-action:manipulation;overflow-x:hidden}
 <script>
 (() => {
 "use strict";
-const S = { maquinas:{}, calendario:[], pedidos:[], apont:{}, ordem:{}, travas:{}, imp:null, loaded:{m:false,c:false,p:false} };
+const S = { maquinas:{}, calendario:[], pedidos:[], apont:{}, hist:{}, ordem:{}, travas:{}, imp:null, loaded:{m:false,c:false,p:false} };
 let db = null, canEdit = false, canWrite = true, dbState = "loading", local = false;
 const LKEY = "triapack-dados";
 const saveLocal = () => { try { localStorage.setItem(LKEY, JSON.stringify({maquinas:S.maquinas,calendario:S.calendario,pedidos:S.pedidos,apont:S.apont,ordem:S.ordem,travas:S.travas,imp:S.imp})); } catch(e){} };
 const loadLocal = () => { try { const d = JSON.parse(localStorage.getItem(LKEY)||"null"); if (d) Object.assign(S, d); } catch(e){} };
 function goLocal(){ local = true; db = null; canEdit = true; canWrite = true; dbState = "local"; loadLocal();
   document.getElementById("who").innerHTML = `<span class="pill">Neste computador</span>`; render(); }
-const UI = { maq:null, inicio:null, q:"", cMaq:"", cDia:"", cMes:"", showDone:false };
+const UI = { maq:null, inicio:null, q:"", cMaq:"", cDia:"", cMes:"", showDone:false, dPer:15 };
 try { const s = JSON.parse(localStorage.getItem("triapack-ui")||"{}"); Object.assign(UI, s, {q:""}); } catch(e){}
 const saveUI = () => { try { localStorage.setItem("triapack-ui", JSON.stringify({maq:UI.maq,cMaq:UI.cMaq})); } catch(e){} };
 
@@ -780,12 +792,16 @@ async function importar(file){
         const ntv = Object.fromEntries(Object.entries(tv).filter(([k])=>ids.has(k))), nord = ord.filter(k=>ids.has(k));
         if (nord.length!==ord.length || Object.keys(ntv).length!==Object.keys(tv).length){
           if (nord.length || Object.keys(ntv).length) await db.collection("ordem").doc(d.id).set({...v, ids:nord, travas:ntv, em:new Date().toISOString()}); else await db.collection("ordem").doc(d.id).delete(); } }
-      const aps = await db.collection("apontamentos").get(); const orf = aps.docs.filter(d=>!ids.has(d.id)).map(d=>d.id);
+      const aps = await db.collection("apontamentos").get(); const orfD = aps.docs.filter(d=>!d.id.startsWith("hist__") && !ids.has(d.id)); const orf = orfD.map(d=>d.id);
+      /* guarda o histórico de produção (para os Indicadores) antes de apagar o apontamento */
+      for (const d of orfD){ const v = d.data()||{}; if (!(v.parciais||[]).length) continue; const hid = "hist__"+d.id+"__"+Date.now();
+        await db.collection("apontamentos").doc(hid).set({maquina:v.maquina, op:d.id, parciais:v.parciais, arquivado:new Date().toISOString()}); }
       const ra = db.collection("apontamentos"); if (orf.length){ if (ra.deleteMany) await ra.deleteMany(orf); else for (const id of orf) await ra.doc(id).delete(); } }
     if (nDes || Object.values(oldH).some(Boolean)){ say("Gravando desenhos…");
       const curD = await db.collection("desenhos").get(); const has = new Set(curD.docs.map(d=>d.id));
       for (const id of has) if (!desOf[id]) await db.collection("desenhos").doc(id).delete();
       for (const [id, url] of Object.entries(desOf)){ if (url.length > 250000){ say(`Aviso: desenho da OP ${id} é grande demais e não foi gravado.`); continue; } if (!has.has(id) || oldH[id] !== hashStr(url)) await db.collection("desenhos").doc(id).set({img:url}); } }
+    { const hoje = todayISO(); S.calendario = r.calendario; await guardarHoras(r.calendario.filter(c=>c.data<=hoje).map(c=>c.data)); }
     await db.doc("config/importacao").set({em:new Date().toISOString(), arquivo:file.name, maquinas:r.maquinas.length, dias:r.calendario.length, pedidos:r.pedidos.length});
     say(`Atualizado: ${r.pedidos.length} pedidos, ${r.maquinas.length} máquinas, ${r.calendario.length} dias.`); document.getElementById("mdl").hidden=true;
   }catch(e){ const m="Não foi possível atualizar: "+(e && (e.message||e.code) || e); log.textContent += m+"\n"; toast(m, true); }
@@ -1230,6 +1246,56 @@ const ICO_MAQ = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICO_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
 const ICO_USR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 const ICO_HOME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
+/* ---------- Indicadores de produção ---------- */
+const ICO_DASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15v3M11 10v8M15 12v6M19 6v12"/></svg>`;
+const isoLocal = t => { const d = new Date(t); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
+function prodPorDia(cod){
+  const out = {};
+  const add = (a) => { if (!a || a.maquina!==cod) return; for (const x of (a.parciais||[])){ const q = Number(x.qtd)||0; if (!q || !x.em) continue; const k = isoLocal(x.em); out[k] = (out[k]||0) + q; } };
+  Object.values(S.apont).forEach(add); Object.values(S.hist||{}).forEach(add);
+  return out;
+}
+const minCal = k => { const c = S.calendario.find(x=>x.data===k); return c ? (c.turnos||[]).reduce((t,x)=>t+(x.fim-x.ini),0) : 0; };
+/* horas do dia: aba Calendário; se o dia já saiu da planilha, usa as horas guardadas (hist__horas__<data>) */
+const horasDia = k => { const m = minCal(k); if (m>0) return m/60; const g = S.hist && S.hist["hist__horas__"+k]; return g && g.horas>0 ? g.horas : null; };
+async function guardarHoras(dias){ if (!db) return; for (const k of dias){ const m = minCal(k); if (!(m>0)) continue; const id = "hist__horas__"+k; const g = S.hist && S.hist[id]; if (g && Math.abs(g.horas - m/60) < 1e-6) continue; try { await db.collection("apontamentos").doc(id).set({data:k, horas:m/60}); } catch(e){} } }
+function viewIndicadores(){
+  const ms = maqList();
+  const sel = decodeURIComponent(location.hash.split("/")[1]||"");
+  if (!sel || !S.maquinas[sel]){
+    const hoje = todayISO(), ini7 = isoLocal(Date.now()-6*864e5);
+    return `<div class="head"><div><h1>Indicadores</h1><p class="sub">Caixas produzidas por dia e peças por hora. Escolha a máquina.</p></div></div>${ms.length ? `<div class="mqs">${ms.map(m=>{ const pd = prodPorDia(m.cod); const t7 = Object.entries(pd).filter(([k])=>k>=ini7&&k<=hoje).reduce((t,[,v])=>t+v,0); return mqBtn(m,{tag:"a", a:`href="#indicadores/${encodeURIComponent(m.cod)}"`}, ` · 7 dias: ${fmtN(t7)} cx produzidas`); }).join("")}</div>` : emptyState()}`;
+  }
+  const m = S.maquinas[sel], per = UI.dPer||15, hoje = todayISO();
+  const pd = prodPorDia(sel);
+  const dias = []; for (let i=per-1;i>=0;i--){ const k = isoLocal(Date.now()-i*864e5); const h = horasDia(k); if (pd[k] || h) dias.push({k, q:pd[k]||0, h}); }
+  const comProd = dias.filter(d=>d.q>0), comH = comProd.filter(d=>d.h);
+  const tot = comProd.reduce((t,d)=>t+d.q,0);
+  const media = comProd.length ? tot/comProd.length : 0;
+  const pph = comH.length ? comH.reduce((t,d)=>t+d.q,0) / comH.reduce((t,d)=>t+d.h,0) : 0;
+  const nom = (Number(m.batidasMin)||0)*60;
+  const efic = nom && pph ? pph/nom*100 : 0;
+  const maxQ = Math.max(1, ...dias.map(d=>d.q));
+  const corEf = e => e>=80 ? "var(--ok)" : e>=50 ? "#c99a06" : "var(--bad)";
+  const barras = dias.map(d=>{ const hgt = d.q/maxQ*100; const e = d.h && nom ? d.q/d.h/nom*100 : null;
+    return `<div class="db-col" title="${dow(d.k)} ${dBR(d.k)}: ${fmtN(d.q)} cx${d.h?` · ${fmtN(Math.round(d.q/d.h))} pç/h`:""}"><div class="db-track"><div class="db-bar${d.q?"":" zero"}" style="height:${Math.max(hgt, d.q?2:0)}%"><span class="db-v">${d.q?fmtN(d.q):""}</span></div></div><span class="db-d">${dow(d.k).slice(0,3)}<br>${d.k.slice(8,10)}/${d.k.slice(5,7)}</span></div>`; }).join("");
+  const linhas = dias.slice().reverse().map(d=>{ const ph = d.h && d.q ? d.q/d.h : null; const e = ph && nom ? ph/nom*100 : null;
+    return `<tr${d.q?"":` class="row-break"`}><td class="mono">${dow(d.k).slice(0,3)} ${dBR(d.k)}</td><td class="num"><b>${d.q?fmtN(d.q):"—"}</b></td><td class="num mono">${d.h?hm(d.h*60):"—"}</td><td class="num">${ph?fmtN(Math.round(ph)):"—"}</td><td class="num">${e!=null?`<b style="color:${corEf(e)}">${fmtN(Math.round(e))}%</b>`:"—"}</td></tr>`; }).join("");
+  return `<div class="head"><div><h1>${esc(m.cod)}</h1><p class="sub">Indicadores · ${esc(m.nome||"")}</p></div>
+    <div class="seg" role="group" aria-label="Período">${[7,15,30].map(n=>`<button class="btn" data-dper="${n}" aria-pressed="${per===n}">${n} dias</button>`).join("")}</div></div>
+  <div class="kpis">
+    <div class="kpi"><span>Caixas produzidas</span><b>${fmtN(tot)}</b><div class="sub" style="margin:0">últimos ${per} dias</div></div>
+    <div class="kpi"><span>Média por dia</span><b>${fmtN(Math.round(media))}</b><div class="sub" style="margin:0">${comProd.length} dia${comProd.length===1?"":"s"} com produção</div></div>
+    <div class="kpi"><span>Peças por hora</span><b>${pph?fmtN(Math.round(pph)):"—"}</b><div class="sub" style="margin:0">caixas ÷ horas de turno</div></div>
+    <div class="kpi"><span>Velocidade nominal</span><b>${fmtN(nom)}/h</b><div class="sub" style="margin:0">${fmtN(m.batidasMin)} batidas/min</div></div>
+    <div class="kpi"><span>Aproveitamento</span><b style="color:${efic?corEf(efic):"inherit"}">${efic?fmtN(Math.round(efic))+"%":"—"}</b><div class="sub" style="margin:0">peças/h ÷ nominal</div></div>
+  </div>
+  <section class="panel"><h2 style="font-size:15px;margin:0 0 10px">Caixas produzidas por dia</h2>
+    ${dias.length ? `<div class="db-chart">${barras}</div>` : `<div class="empty">Sem produção apontada nem dias de turno no período.</div>`}</section>
+  <section class="panel" style="padding:0"><div class="scroll"><table><thead><tr><th>Dia</th><th class="num">Caixas</th><th class="num">Horas de turno</th><th class="num">Peças/hora</th><th class="num">Aproveitamento</th></tr></thead><tbody>${linhas || `<tr><td colspan="5" class="empty">Nada no período.</td></tr>`}</tbody></table></div></section>
+  <p class="sub" style="font-size:12px">Cálculo: caixas apontadas no dia ÷ horas de turno do dia na aba Calendário (o intervalo entre os turnos já fica de fora). Aproveitamento = peças por hora ÷ velocidade nominal (batidas/min × 60). Setup e limpeza estão dentro das horas de turno.</p>`;
+}
+
 function viewInicio(){
   const pend = S.pedidos.filter(p=>!(S.apont[p.id]&&S.apont[p.id].feito)).length;
   const nm = maqList().length;
@@ -1240,6 +1306,7 @@ function viewInicio(){
     <a class="tile" href="#maquinas"><span class="ic">${ICO_MAQ}</span><span><b>Máquinas</b><small>${nm} máquina${nm===1?"":"s"} cadastrada${nm===1?"":"s"}</small></span></a>
     <button class="tile dark" data-act="relatorio"><span class="ic">${ICO_PRT}</span><span><b>Imprimir programação</b><small>PDF por máquina e data</small></span></button>
     <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
+    <a class="tile" href="#indicadores"><span class="ic">${ICO_DASH}</span><span><b>Indicadores</b><small>Caixas por dia e peças por hora</small></span></a>
     <a class="tile" href="#calendario"><span class="ic">${ICO_CAL}</span><span><b>Calendário</b><small>Dias e turnos de trabalho</small></span></a>
     ${ROUTES.usuarios && typeof ehAdmin==="function" && ehAdmin() ? `<a class="tile" href="#usuarios"><span class="ic">${ICO_USR}</span><span><b>Usuários</b><small>Liberar acesso${(()=>{const n=(usuarios||[]).filter(u=>u.papel==="pendente").length; return n?` · ${n} aguardando`:"";})()}</small></span></a>` : ""}
   </div>`;
@@ -1254,14 +1321,14 @@ function viewProduzidas(){
     <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx em reprogramação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("")
   : `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>`}`;
 }
-const ROUTES = {inicio:viewInicio, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
+const ROUTES = {inicio:viewInicio, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
 function route(){ const h = location.hash.replace("#","").split("/")[0]; return ROUTES[h] ? h : "inicio"; }
 function render(){
   const r = route();
   document.querySelectorAll("#nav a").forEach(a=>a.setAttribute("aria-current", a.getAttribute("href")==="#"+r ? "page" : "false"));
   const f = document.activeElement && document.activeElement.id; const pos = f==="q" ? document.activeElement.selectionStart : null;
-  const naMaq = /^#sequencia\/./.test(location.hash);
-  app.innerHTML = (r!=="inicio" ? `<div class="voltar"><a class="btn-inicio" href="#inicio">${ICO_HOME}Início</a>${naMaq?`<a class="btn-inicio alt" href="#sequencia">${ICO_HOME}Máquinas</a>`:""}</div>` : "") + ROUTES[r]();
+  const naMaq = /^#(sequencia|indicadores)\/./.test(location.hash); const volta = "#"+location.hash.slice(1).split("/")[0];
+  app.innerHTML = (r!=="inicio" ? `<div class="voltar"><a class="btn-inicio" href="#inicio">${ICO_HOME}Início</a>${naMaq?`<a class="btn-inicio alt" href="${volta}">${ICO_HOME}Máquinas</a>`:""}</div>` : "") + ROUTES[r]();
   if (f){ const el = document.getElementById(f); if (el){ el.focus(); if (pos!=null && el.setSelectionRange) el.setSelectionRange(pos,pos); } }
 }
 let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render, 30); };
@@ -1269,6 +1336,7 @@ let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render
 /* ---------- eventos ---------- */
 app.addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.dper){ UI.dPer=Number(b.dataset.dper); render(); return; }
   if (b.dataset.cmaq!==undefined){ UI.cMaq=b.dataset.cmaq; saveUI(); render(); return; }
   if (b.dataset.cdia!==undefined){ UI.cDia = (UI.cDia===b.dataset.cdia ? "" : b.dataset.cdia); render(); return; }
   if (b.dataset.cmes){ const [y,m]=(UI.cMes||todayISO().slice(0,7)).split("-").map(Number); const d=new Date(y, m-1+Number(b.dataset.cmes), 1); UI.cMes=d.getFullYear()+"-"+pad(d.getMonth()+1); render(); return; }
@@ -1315,6 +1383,7 @@ async function confirmarApontar(){
   } else dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais, reprogramar:true};
   d.querySelector('[data-act="aptOk"]').disabled=true;
   const ok = await gravarApont(id, dado); d.querySelector('[data-act="aptOk"]').disabled=false; if (!ok) return;
+  guardarHoras([todayISO()]);
   d.hidden=true; if (!document.getElementById("det").hidden) fecharOP();
   toast(fin==="sim" ? `OP ${opN(p)} finalizada com ${fmtN(tot)} cx.` : `OP ${opN(p)}: ${fmtN(v)} cx apontadas. Saldo de ${fmtN(saldo(p))} cx volta para reprogramar.`);
   render();
@@ -1474,7 +1543,7 @@ async function entrar(session){
   db.collection("calendario").onSnapshot(s=>{ S.calendario=s.docs.map(x=>x.data()); S.loaded.c=true; done(); }, err);
   db.collection("pedidos").onSnapshot(s=>{ S.pedidos=s.docs.map(x=>({...x.data(), id:x.id})); S.loaded.p=true; done(); }, err);
   db.collection("ordem").onSnapshot(s=>{ const o={}, t={}; s.docs.forEach(x=>{ const v=x.data(); if (v && v.maquina){ o[v.maquina]=v.ids||[]; t[v.maquina]=v.travas||{}; } }); S.ordem=o; S.travas=t; schedule(); }, ()=>{});
-  db.collection("apontamentos").onSnapshot(s=>{ const o={}; s.docs.forEach(x=>o[x.id]=x.data()); S.apont=o; schedule(); }, ()=>{});
+  db.collection("apontamentos").onSnapshot(s=>{ const o={}, h={}; s.docs.forEach(x=>{ if (x.id.startsWith("hist__")) h[x.id]=x.data(); else o[x.id]=x.data(); }); S.apont=o; S.hist=h; schedule(); }, ()=>{});
   db.doc("config/importacao").onSnapshot(s=>{ S.imp = s.exists ? s.data() : null; schedule(); }, ()=>{});
 }
 /* ---------- usuários (somente programador) ---------- */
