@@ -1296,6 +1296,17 @@ function makeDb(sb){
   return { collection: colRef, doc: path => { const [c,i] = path.split("/"); return docRef(c,i); } };
 }
 let sb = null, perfil = null;
+/* Sair: encerra a sessão neste aparelho mesmo se a internet falhar ou o Supabase demorar */
+let saindo = false;
+async function sairApp(e){
+  if (e) e.preventDefault();
+  if (saindo) return; saindo = true;
+  const b = document.getElementById("sair") || document.getElementById("aSair"); if (b) b.textContent = "Saindo...";
+  try { await Promise.race([ sb.auth.signOut({scope:"local"}), new Promise(r=>setTimeout(r,2500)) ]); } catch(_){}
+  try { Object.keys(localStorage).filter(k=>k.startsWith("sb-")).forEach(k=>localStorage.removeItem(k)); } catch(_){}
+  try { sessionStorage.clear(); } catch(_){}
+  location.replace(location.pathname + location.search);
+}
 const authEl = () => document.getElementById("auth");
 function telaLogin(modo, msg){
   const el = authEl(); el.hidden = false; document.querySelector(".stage").hidden = true; document.getElementById("nav").hidden = true;
@@ -1328,7 +1339,7 @@ function telaLogin(modo, msg){
 function telaPendente(){
   const el = authEl(); el.hidden = false; document.querySelector(".stage").hidden = true; document.getElementById("nav").hidden = true;
   el.innerHTML = `<div class="authbox"><img src="${document.querySelector(".brand img").src}" alt="Triapack" class="authlogo"><h1>Acesso aguardando liberação</h1><p class="sub">Olá, ${esc(perfil.nome||perfil.email)}. Seu cadastro foi criado. Peça ao programador para liberar seu acesso em <b>Usuários</b>.</p>${perfil.diag?`<p class="sub" style="font-size:12px;opacity:.7">Detalhe técnico: ${esc(perfil.diag)}</p>`:""}<button id="aSair">Sair</button></div>`;
-  document.getElementById("aSair").onclick = () => sb.auth.signOut();
+  document.getElementById("aSair").onclick = sairApp;
 }
 let iniciado = false;
 async function entrar(session){
@@ -1337,8 +1348,8 @@ async function entrar(session){
   if (perfil.papel==="pendente"){ telaPendente(); return; }
   authEl().hidden = true; document.querySelector(".stage").hidden = false; document.getElementById("nav").hidden = false;
   canEdit = perfil.papel==="programador"; canWrite = true;
-  document.getElementById("who").innerHTML = `${esc(perfil.nome||perfil.email)} <span class="pill ${canEdit?"acc":""}">${canEdit?"Programador":"Produção"}</span> <button class="linkbtn" id="sair" style="color:var(--hdr-muted)">Sair</button>`;
-  document.getElementById("sair").onclick = () => sb.auth.signOut();
+  document.getElementById("who").innerHTML = `${esc(perfil.nome||perfil.email)} <span class="pill ${canEdit?"acc":""}">${canEdit?"Programador":"Produção"}</span> <button class="linkbtn" id="sair" style="color:var(--hdr-muted);padding:10px 12px;margin:-10px 0;touch-action:manipulation">Sair</button>`;
+  document.getElementById("sair").onclick = sairApp;
   document.getElementById("navUsuarios").hidden = !canEdit;
   if (iniciado) { render(); return; } iniciado = true;
   db = makeDb(sb); dbState = "ok"; render();
@@ -1376,7 +1387,8 @@ ROUTES.usuarios = viewUsuarios;
   sb = window.supabase.createClient(cfg.url, cfg.anon, {auth:{persistSession:true, autoRefreshToken:true}});
   const {data} = await sb.auth.getSession();
   if (data.session) await entrar(data.session); else telaLogin("login");
-  sb.auth.onAuthStateChange((ev, session) => { if (ev==="SIGNED_IN" && session) entrar(session); if (ev==="SIGNED_OUT"){ location.hash=""; location.reload(); } });
+
+  sb.auth.onAuthStateChange((ev, session) => { if (ev==="SIGNED_IN" && session) entrar(session); if (ev==="SIGNED_OUT" && !saindo){ location.replace(location.pathname + location.search); } });
 })();
 })();
 </script>
