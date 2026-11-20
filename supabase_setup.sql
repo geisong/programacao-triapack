@@ -75,3 +75,9 @@ where not exists (select 1 from public.perfis p where p.user_id = u.id);
 update public.perfis set papel = 'programador'
 where user_id = (select user_id from public.perfis order by criado_em limit 1)
   and not exists (select 1 from public.perfis where papel = 'programador');
+
+-- 6) Libera o acesso das tabelas para o site (projetos novos do Supabase não liberam sozinhos)
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on public.docs to authenticated;
+grant select, update on public.perfis to authenticated;
+grant execute on function public.papel_atual() to authenticated;
