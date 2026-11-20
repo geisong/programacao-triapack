@@ -106,6 +106,13 @@ footer.foot{padding-block:18px 28px;color:var(--muted);font-size:12px;display:fl
 .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;background:var(--surface2);color:var(--muted);border:1px solid var(--line)}
 .pill.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
 .pill.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
+.pill.np{white-space:nowrap;background:var(--surface2);color:var(--muted,#6b7280);border:1px dashed currentColor}
+.pill .lk{width:11px;height:11px}
+.lockbtn.st{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.02em;white-space:nowrap}
+.lockbtn.st.on{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
+.lockbtn.st:not(.on){border-style:dashed;color:var(--muted,#6b7280)}
+.st-m{display:none;margin-top:4px}
+@media (max-width:640px){.st-m{display:block}}
 .pill.acc{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 main{padding-block:28px 40px;display:grid;gap:18px}
 h1{font-family:var(--f-display);font-size:22px;font-weight:700;margin:0;text-wrap:balance}
@@ -381,6 +388,7 @@ function sequenciar(list){
 
 /* ordem manual (arrastar) + OPs travadas: a OP travada fica fixa na posição; as outras ocupam as posições livres */
 const LOCK_I = `<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
+const stPill = (cod,id) => travada(cod,id) ? `<span class="pill ok">${LOCK_I}Programado</span>` : `<span class="pill np">${UNLOCK_I}Não programado</span>`;
 const UNLOCK_I = `<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1.9"/></svg>`;
 const opN = p => (p && (p.op || p.codigo)) || "—";
 const travas = cod => S.travas[cod] || {};
@@ -428,9 +436,9 @@ function filaPanel(ag, cod){
   const nT = ag.seq.filter(q=>travada(cod,q.p.id)).length;
   const last = ag.seq.length-1;
   return `<section class="panel fila" aria-label="Ordem da fila">
-    <div class="head"><h2>Ordem da fila</h2><span style="display:flex;gap:6px">${nT?`<span class="pill">${nT} travada${nT>1?"s":""}</span>`:""}${man?`<span class="pill acc">Manual</span>`:`<span class="pill">Automática</span>`}</span></div>
-    <p class="sub" style="margin:0">Arraste um pedido para a posição desejada (ou use as setas). Trave a OP para ela não sair da posição quando entrarem OPs novas.</p>
-    <ol class="fila-l" id="fila">${ag.seq.map((q,i)=>{ const L = travada(cod,q.p.id); return `<li draggable="${L?"false":"true"}" class="${L?"locked":""}" data-id="${esc(q.p.id)}"><span class="grip" aria-hidden="true">${L?"":"⋮⋮"}</span><span class="mono n">${q.n}</span><span class="t"><b>OP ${esc(opN(q.p))}</b> ${esc(q.p.descricao)}<span class="dots">${(q.p.cores||[]).map(c=>`<i title="${esc(c)}" style="background:${SW[corBase(c)]||"transparent"}"></i>`).join("")}</span></span><span class="mv"><button class="small lockbtn ${L?"on":""}" data-lock="${esc(q.p.id)}" title="${L?"Destravar":"Travar"} esta OP" aria-label="${L?"Destravar":"Travar"} OP ${esc(opN(q.p))}">${L?LOCK_I:UNLOCK_I}</button><button class="small" data-mv="-1" data-id="${esc(q.p.id)}" aria-label="Subir" ${i===0||L?"disabled":""}>▲</button><button class="small" data-mv="1" data-id="${esc(q.p.id)}" aria-label="Descer" ${i===last||L?"disabled":""}>▼</button></span></li>`; }).join("")}</ol>
+    <div class="head"><h2>Ordem da fila</h2><span style="display:flex;gap:6px"><span class="pill ok">${nT} programada${nT===1?"":"s"}</span>${ag.seq.length-nT?`<span class="pill np">${ag.seq.length-nT} não programada${ag.seq.length-nT===1?"":"s"}</span>`:""}${man?`<span class="pill acc">Manual</span>`:`<span class="pill">Automática</span>`}</span></div>
+    <p class="sub" style="margin:0">Arraste um pedido para a posição desejada (ou use as setas). Clique no cadeado para marcar a OP como <b>Programado</b>: ela fica fixa na posição quando entrarem OPs novas. Sem o cadeado, a OP aparece como <b>Não programado</b>.</p>
+    <ol class="fila-l" id="fila">${ag.seq.map((q,i)=>{ const L = travada(cod,q.p.id); return `<li draggable="${L?"false":"true"}" class="${L?"locked":""}" data-id="${esc(q.p.id)}"><span class="grip" aria-hidden="true">${L?"":"⋮⋮"}</span><span class="mono n">${q.n}</span><span class="t"><b>OP ${esc(opN(q.p))}</b> ${esc(q.p.descricao)}<span class="dots">${(q.p.cores||[]).map(c=>`<i title="${esc(c)}" style="background:${SW[corBase(c)]||"transparent"}"></i>`).join("")}</span></span><span class="mv"><button class="small lockbtn st ${L?"on":""}" data-lock="${esc(q.p.id)}" title="${L?"Marcar como não programado":"Marcar como programado"}" aria-label="OP ${esc(opN(q.p))}: ${L?"programado":"não programado"}">${L?LOCK_I+"Programado":UNLOCK_I+"Não prog."}</button><button class="small" data-mv="-1" data-id="${esc(q.p.id)}" aria-label="Subir" ${i===0||L?"disabled":""}>▲</button><button class="small" data-mv="1" data-id="${esc(q.p.id)}" aria-label="Descer" ${i===last||L?"disabled":""}>▼</button></span></li>`; }).join("")}</ol>
     <div class="notice err" id="filaMsg" hidden></div>
     ${man?`<div><button data-act="auto">Voltar à ordem automática</button></div>`:""}
   </section>`;
@@ -754,7 +762,7 @@ async function gerarRelatorio(){
     const body = [];
     for (const x of d.blocks){
       if (x.t==="prod"){ const p=x.q.p; const parcial = x.qtd < p.quantidade;
-        body.push({k:"prod", row:[String(x.q.n)+(travada(cod,p.id)?" *":""), hm(x.a), hm(x.b), opN(p), (p.descricao||"—")+(p.codigo?`\nCód. ${p.codigo}`:""), p.cliente||"—", p.modelo||"—", p.onda||"—", med(p), ch(p), (p.cores||[]).join(", ")||"Sem impressão", fmtN(x.qtd)+(parcial?`\nde ${fmtN(p.quantidade)}`:""), dShort(p.entrega), hm(x.b-x.a)]}); }
+        body.push({k:"prod", row:[String(x.q.n)+(travada(cod,p.id)?"":" *"), hm(x.a), hm(x.b), opN(p), (p.descricao||"—")+(p.codigo?`\nCód. ${p.codigo}`:"")+(travada(cod,p.id)?"":"\nNÃO PROGRAMADO"), p.cliente||"—", p.modelo||"—", p.onda||"—", med(p), ch(p), (p.cores||[]).join(", ")||"Sem impressão", fmtN(x.qtd)+(parcial?`\nde ${fmtN(p.quantidade)}`:""), dShort(p.entrega), hm(x.b-x.a)]}); }
       else { const lab = x.t==="inicio" ? "INÍCIO DE TURNO" : x.t==="limpeza" ? "LIMPEZA" : x.t==="break" ? "INTERVALO" : `SETUP · OP ${opN(x.q.p)}`;
         body.push({k:x.t, row:["", hm(x.a), hm(x.b), {content:lab, colSpan:10}, hm(x.b-x.a)]}); }
     }
@@ -781,7 +789,7 @@ async function gerarRelatorio(){
   }
   // assinaturas
   if (y > H-30){ doc.addPage(); cab(); y = 34; }
-  doc.setFontSize(8); doc.setTextColor(...GREY); if ([...opsPer].some(id=>travada(cod,id))) doc.text("* OP com posição travada na sequência.", M, y); y += 14;
+  doc.setFontSize(8); doc.setTextColor(...GREY); if ([...opsPer].some(id=>!travada(cod,id))) doc.text("* OP NÃO PROGRAMADA (sem cadeado): a posição ainda pode mudar.", M, y); y += 14;
   doc.setDrawColor(150,158,166); [["Programação (PCP)", M],["Supervisor de produção", M+95],["Operador", M+190]].forEach(([t,x])=>{ doc.line(x, y, x+80, y); doc.text(t, x, y+4.5); });
   const n = doc.getNumberOfPages();
   for (let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(...GREY); doc.text(`Triapack · Programação da Produção · ${m.cod}`, M, H-5); doc.text(`Página ${i} de ${n}`, W-M, H-5, {align:"right"}); }
@@ -885,7 +893,7 @@ function viewSequencia(){
       else if (b.t==="break") rows += `<tr class="row-break">${t}<td colspan="7">Intervalo</td></tr>`;
       else if (b.t==="setup") rows += `<tr class="row-setup">${t}<td class="mono">${b.q.n}</td><td colspan="6">Setup para OP ${esc(opN(b.q.p))} · ${esc(b.q.p.descricao)}</td></tr>`;
       else { const p=b.q.p; const f=ag.info[p.id]; const late = p.entrega && f && f.fim && f.fim.data>p.entrega;
-        rows += `<tr>${t}<td class="mono">${b.q.n}${travada(UI.maq,p.id)?` <span class="lkb" title="OP travada">${LOCK_I}</span>`:""}</td><td><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:0">${esc(p.cliente)}</div></td><td>${chips(p.cores)}</td><td>${esc(p.onda)}</td><td class="num">${fmtN(b.qtd)}${b.qtd<p.quantidade?` <span class="sub">de ${fmtN(p.quantidade)}</span>`:""}</td><td class="mono ${late?"late":""}">${dShort(p.entrega)}${late?" ⚠":""}</td><td class="num mono">${hm(b.b-b.a)}</td></tr>`; }
+        rows += `<tr>${t}<td class="mono">${b.q.n}</td><td><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:0">${esc(p.cliente)}</div><div style="margin-top:4px">${stPill(UI.maq,p.id)}</div></td><td>${chips(p.cores)}</td><td>${esc(p.onda)}</td><td class="num">${fmtN(b.qtd)}${b.qtd<p.quantidade?` <span class="sub">de ${fmtN(p.quantidade)}</span>`:""}</td><td class="mono ${late?"late":""}">${dShort(p.entrega)}${late?" ⚠":""}</td><td class="num mono">${hm(b.b-b.a)}</td></tr>`; }
     }
   }
   const sem = ag.semData.length ? `<div class="notice warn">${ag.semData.length} pedido(s) não couberam no calendário: ${ag.semData.map(q=>esc(opN(q.p))).join(", ")}. Inclua mais dias na aba Calendário da planilha.</div>` : "";
@@ -931,10 +939,11 @@ function infoOP(x){
       <div><dt>Cliente</dt><dd>${esc(p.cliente||"—")}</dd></div>
       <div><dt>Entrega</dt><dd class="${late?"late":""}">${dBR(p.entrega)}</dd></div>
       <div><dt>Máquina</dt><dd>${esc(p.maquina)}</dd></div>
+      <div><dt>Situação</dt><dd>${stPill(p.maquina,p.id)}</dd></div>
       <div><dt>Linha na planilha</dt><dd>${esc(p.linha||"—")}</dd></div>
     </dl>
     <dl class="spec" style="grid-template-columns:1fr"><div><dt>Cores</dt><dd style="margin-top:4px">${chips(p.cores)}</dd></div></dl>
-    <div class="controls" style="justify-content:flex-end">${p.desenhoH?`<button class="btn-ico" data-des="${esc(p.id)}" style="margin-right:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M8 5v14M16 5v14M3 10h18"/></svg>Abrir desenho</button>`:(p.desenhoLink?`<a class="btn-ico" style="margin-right:auto;font-weight:600" href="${esc(p.desenhoLink)}" target="_blank" rel="noopener">Abrir desenho</a>`:`<span class="sub" style="margin:0 auto 0 0">Sem desenho na planilha</span>`)}${canEdit&&!x.done?`<button class="btn-ico" data-lockop="${esc(p.id)}">${travada(p.maquina,p.id)?LOCK_I+"Destravar":UNLOCK_I+"Travar posição"}</button>`:""}${canWrite?`<button data-feito="${esc(p.id)}">${x.done?"Desfazer produzido":"Marcar como produzido"}</button>`:""}<button class="primary" data-act="fecharOP">Fechar</button></div>`;
+    <div class="controls" style="justify-content:flex-end">${p.desenhoH?`<button class="btn-ico" data-des="${esc(p.id)}" style="margin-right:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M8 5v14M16 5v14M3 10h18"/></svg>Abrir desenho</button>`:(p.desenhoLink?`<a class="btn-ico" style="margin-right:auto;font-weight:600" href="${esc(p.desenhoLink)}" target="_blank" rel="noopener">Abrir desenho</a>`:`<span class="sub" style="margin:0 auto 0 0">Sem desenho na planilha</span>`)}${canEdit&&!x.done?`<button class="btn-ico" data-lockop="${esc(p.id)}">${travada(p.maquina,p.id)?UNLOCK_I+"Marcar como não programado":LOCK_I+"Marcar como programado"}</button>`:""}${canWrite?`<button data-feito="${esc(p.id)}">${x.done?"Desfazer produzido":"Marcar como produzido"}</button>`:""}<button class="primary" data-act="fecharOP">Fechar</button></div>`;
 }
 function abrirOP(id){
   const x = consultaIdx[id]; if (!x) return;
@@ -961,9 +970,9 @@ function viewConsulta(){
   const whenF = x => x.inf ? `${x.inf.fim.data!==x.inf.ini.data?dShort(x.inf.fim.data)+" ":""}${hm(x.inf.fim.h)}` : "—";
   const row = x => { const p=x.p; const late = p.entrega && x.inf && x.inf.fim && x.inf.fim.data>p.entrega;
     return `<tr class="op ${x.done?"done":""}" data-op="${esc(p.id)}" tabindex="0" aria-label="Abrir OP ${esc(opN(p))}">
-      <td class="mono num">${x.n||"✓"}${x.n&&travada(p.maquina,p.id)?` <span class="lkb" title="OP travada">${LOCK_I}</span>`:""}</td><td class="mono"><b>${esc(opN(p))}</b></td><td>${esc(p.descricao)}</td><td>${esc(p.cliente)}</td><td>${dots(p.cores)}</td>
+      <td class="mono num">${x.n||"✓"}</td><td class="mono"><b>${esc(opN(p))}</b></td><td>${esc(p.descricao)}<div class="st-m">${x.done?`<span class="pill ok">Produzido</span>`:stPill(p.maquina,p.id)}</div></td><td>${esc(p.cliente)}</td><td>${dots(p.cores)}</td>
       <td class="num">${fmtN(p.quantidade)}</td><td class="mono">${when(x)}</td><td class="mono">${whenF(x)}</td>
-      <td>${x.done?`<span class="pill ok">Produzido</span>`:(late?`<span class="pill bad">Atrasa</span>`:`<span class="pill acc">Programado</span>`)}</td></tr>`; };
+      <td>${x.done?`<span class="pill ok">Produzido</span>`:(!travada(p.maquina,p.id)?`<span class="pill np">Não programado</span>`:(late?`<span class="pill bad">Programado · atrasa</span>`:`<span class="pill acc">Programado</span>`))}</td></tr>`; };
   const porMaq = ms.map(m=>({m, itens:list.filter(x=>x.p.maquina===m.cod)})).filter(g=>g.itens.length);
   return `
   <div class="head"><div><h1>Consulta da produção</h1><p class="sub">${impLine()} · Clique na OP para ver todas as informações.</p></div>${atualizarBtn()}</div>
