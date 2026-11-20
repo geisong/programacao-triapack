@@ -79,6 +79,10 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 #nav{display:none!important}
 .btn-inicio{display:inline-flex;width:fit-content;justify-self:start;align-self:flex-start;align-items:center;gap:8px;margin:0 0 14px;padding:9px 16px 9px 12px;border-radius:999px;background:var(--brand);color:#fff;font-weight:600;font-size:15px;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.25);position:relative;z-index:1}
 .btn-inicio:hover{filter:brightness(1.08)}
+.voltar{display:flex;gap:10px;flex-wrap:wrap;position:relative;z-index:1}
+.btn-inicio.alt{background:rgba(255,255,255,.12);color:#fff;box-shadow:none;border:1px solid rgba(255,255,255,.25)}
+.maqs .tile .cnt{margin-top:10px;font-weight:600;opacity:.9;color:var(--brand)}
+.maqs .tile.vazio{opacity:.6}
 .btn-inicio svg{width:18px;height:18px}
 .home{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:16px;min-height:calc(100svh - 300px)}
 .tile{position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:190px;padding:26px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg,inherit);text-decoration:none;text-align:left;font:inherit;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.08);transition:transform .12s,box-shadow .12s,border-color .12s;overflow:hidden}
@@ -847,10 +851,22 @@ function emptyState(){
   return `<div class="panel empty"><h2>Nenhum pedido carregado</h2><p class="sub">A programação vem da planilha <span class="mono">PROGRAMACAO_TRIAPACK.xlsx</span>. ${canEdit?"Volte ao <b>Início</b> e clique em <b>Atualizar</b> para carregar.":"Peça ao programador para atualizar."}</p>${atualizarBtn()}</div>`;
 }
 
+function viewMaqEscolha(ms){
+  const ini = UI.inicio || firstDay();
+  return `<div class="head"><div><h1>Sequenciamento</h1><p class="sub">Escolha a máquina para ver e ajustar a sequência.</p></div>${atualizarBtn()}</div>${statusBanner()}
+  <div class="home maqs">${ms.map(m=>{
+    const pend = S.pedidos.filter(p=>p.maquina===m.cod&&!(S.apont[p.id]&&S.apont[p.id].feito));
+    let fim = ""; try { const ag = agendar(m.cod, ini); const ld = ag.dias.length ? ag.dias[ag.dias.length-1].data : null; if (pend.length && ld) fim = ` · até ${dBR(ld)}`; } catch(e){}
+    const cx = pend.reduce((t,p)=>t+(Number(p.quantidade)||0),0);
+    return `<a class="tile${pend.length?"":" vazio"}" href="#sequencia/${encodeURIComponent(m.cod)}"><span class="ic">${ICO_MAQ}</span><span><b>${esc(m.cod)}</b><small>${esc(m.nome||"")}</small><small class="cnt">${pend.length} OP${pend.length===1?"":"s"}${pend.length?` · ${fmtN(cx)} caixas`:""}${fim}</small></span></a>`;
+  }).join("")}</div>`;
+}
 function viewSequencia(){
   const ms = maqList();
   if (!ms.length) return `<div class="head"><div><h1>Sequenciamento</h1><p class="sub">${impLine()}</p></div>${atualizarBtn()}</div>${statusBanner()}${emptyState()}`;
-  if (!UI.maq || !S.maquinas[UI.maq]) UI.maq = (ms.find(m=>S.pedidos.some(p=>p.maquina===m.cod))||ms[0]).cod;
+  const sel = decodeURIComponent(location.hash.split("/")[1]||"");
+  if (!sel || !S.maquinas[sel]) return viewMaqEscolha(ms);
+  UI.maq = sel;
   const ini = UI.inicio || firstDay();
   const m = S.maquinas[UI.maq]; const ag = agendar(UI.maq, ini);
   const totQ = ag.seq.reduce((s,q)=>s+(Number(q.p.quantidade)||0),0);
@@ -874,7 +890,7 @@ function viewSequencia(){
   }
   const sem = ag.semData.length ? `<div class="notice warn">${ag.semData.length} pedido(s) não couberam no calendário: ${ag.semData.map(q=>esc(opN(q.p))).join(", ")}. Inclua mais dias na aba Calendário da planilha.</div>` : "";
   return `
-  <div class="head"><div><h1>Sequenciamento</h1><p class="sub">${impLine()}</p></div>${atualizarBtn()}</div>
+  <div class="head"><div><h1>${esc(UI.maq)}</h1><p class="sub">Sequenciamento${m&&m.nome?` · ${esc(m.nome)}`:""} · ${impLine()}</p></div>${atualizarBtn()}</div>
   ${statusBanner()}
   <div class="panel controls">
     <div class="mtabs" role="group" aria-label="Máquina">${ms.map(x=>`<button data-maq="${esc(x.cod)}" aria-pressed="${x.cod===UI.maq}">${esc(x.cod)} <span class="sub" style="margin:0">${S.pedidos.filter(p=>p.maquina===x.cod&&!(S.apont[p.id]&&S.apont[p.id].feito)).length}</span></button>`).join("")}</div>
@@ -999,12 +1015,13 @@ function viewInicio(){
   </div>`;
 }
 const ROUTES = {inicio:viewInicio, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
-function route(){ const h = location.hash.replace("#",""); return ROUTES[h] ? h : "inicio"; }
+function route(){ const h = location.hash.replace("#","").split("/")[0]; return ROUTES[h] ? h : "inicio"; }
 function render(){
   const r = route();
   document.querySelectorAll("#nav a").forEach(a=>a.setAttribute("aria-current", a.getAttribute("href")==="#"+r ? "page" : "false"));
   const f = document.activeElement && document.activeElement.id; const pos = f==="q" ? document.activeElement.selectionStart : null;
-  app.innerHTML = (r!=="inicio" ? `<a class="btn-inicio" href="#inicio">${ICO_HOME}Início</a>` : "") + ROUTES[r]();
+  const naMaq = /^#sequencia\/./.test(location.hash);
+  app.innerHTML = (r!=="inicio" ? `<div class="voltar"><a class="btn-inicio" href="#inicio">${ICO_HOME}Início</a>${naMaq?`<a class="btn-inicio alt" href="#sequencia">${ICO_HOME}Máquinas</a>`:""}</div>` : "") + ROUTES[r]();
   if (f){ const el = document.getElementById(f); if (el){ el.focus(); if (pos!=null && el.setSelectionRange) el.setSelectionRange(pos,pos); } }
 }
 let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render, 30); };
@@ -1015,7 +1032,7 @@ app.addEventListener("click", async e => {
   if (b.dataset.act==="atualizar"){ atualizar(false); return; }
   if (b.dataset.act==="trocar"){ atualizar(true); return; }
   if (b.dataset.act==="relatorio"){ abrirRelatorio(); return; }
-  if (b.dataset.maq){ UI.maq=b.dataset.maq; saveUI(); render(); }
+  if (b.dataset.maq){ UI.maq=b.dataset.maq; saveUI(); location.hash = "#sequencia/"+encodeURIComponent(b.dataset.maq); return; }
   if (b.dataset.act==="auto"){ salvarOrdem(UI.maq, null); return; }
   if (b.dataset.lock){ alternarTrava(UI.maq, b.dataset.lock); return; }
   if (b.dataset.mv){ const ids=filaIds(); const i=ids.indexOf(b.dataset.id); const d=Number(b.dataset.mv); let j=i+d; while (j>=0 && j<ids.length && travada(UI.maq, ids[j])) j+=d; if (i<0||j<0||j>=ids.length) return; [ids[i],ids[j]]=[ids[j],ids[i]]; salvarOrdem(UI.maq, ids); return; }
