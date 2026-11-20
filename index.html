@@ -76,6 +76,10 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
   radial-gradient(1200px 300px at 85% -40%, rgba(238,108,38,.22), transparent 60%),
   linear-gradient(180deg,var(--hdr2),var(--hdr));}
 .stage{position:relative}
+#nav{display:none!important}
+.btn-inicio{display:inline-flex;width:fit-content;justify-self:start;align-self:flex-start;align-items:center;gap:8px;margin:0 0 14px;padding:9px 16px 9px 12px;border-radius:999px;background:var(--brand);color:#fff;font-weight:600;font-size:15px;text-decoration:none;box-shadow:0 4px 14px rgba(0,0,0,.25);position:relative;z-index:1}
+.btn-inicio:hover{filter:brightness(1.08)}
+.btn-inicio svg{width:18px;height:18px}
 .home{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:16px;min-height:calc(100svh - 300px)}
 .tile{position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:18px;min-height:190px;padding:26px;border-radius:14px;border:1px solid var(--line);background:var(--surface);color:var(--fg,inherit);text-decoration:none;text-align:left;font:inherit;cursor:pointer;box-shadow:0 6px 24px rgba(0,0,0,.08);transition:transform .12s,box-shadow .12s,border-color .12s;overflow:hidden}
 .tile:hover{transform:translateY(-2px);box-shadow:0 10px 30px rgba(0,0,0,.14);border-color:var(--brand)}
@@ -976,6 +980,9 @@ function viewCalendario(){
 const ICO_SEQ = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>`;
 const ICO_BUS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>`;
 const ICO_MAQ = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`;
+const ICO_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+const ICO_USR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
+const ICO_HOME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
 function viewInicio(){
   const pend = S.pedidos.filter(p=>!(S.apont[p.id]&&S.apont[p.id].feito)).length;
   const nm = maqList().length;
@@ -985,6 +992,8 @@ function viewInicio(){
     <a class="tile" href="#consulta"><span class="ic">${ICO_BUS}</span><span><b>Consulta da produção</b><small>${pend} OP${pend===1?"":"s"} a produzir</small></span></a>
     <a class="tile" href="#maquinas"><span class="ic">${ICO_MAQ}</span><span><b>Máquinas</b><small>${nm} máquina${nm===1?"":"s"} cadastrada${nm===1?"":"s"}</small></span></a>
     <button class="tile dark" data-act="relatorio"><span class="ic">${ICO_PRT}</span><span><b>Imprimir programação</b><small>PDF por máquina e data</small></span></button>
+    <a class="tile" href="#calendario"><span class="ic">${ICO_CAL}</span><span><b>Calendário</b><small>Dias e turnos de trabalho</small></span></a>
+    ${ROUTES.usuarios && canEdit ? `<a class="tile" href="#usuarios"><span class="ic">${ICO_USR}</span><span><b>Usuários</b><small>Liberar acesso${(()=>{const n=(usuarios||[]).filter(u=>u.papel==="pendente").length; return n?` · ${n} aguardando`:"";})()}</small></span></a>` : ""}
   </div>`;
 }
 const ROUTES = {inicio:viewInicio, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
@@ -993,7 +1002,7 @@ function render(){
   const r = route();
   document.querySelectorAll("#nav a").forEach(a=>a.setAttribute("aria-current", a.getAttribute("href")==="#"+r ? "page" : "false"));
   const f = document.activeElement && document.activeElement.id; const pos = f==="q" ? document.activeElement.selectionStart : null;
-  app.innerHTML = ROUTES[r]();
+  app.innerHTML = (r!=="inicio" ? `<a class="btn-inicio" href="#inicio">${ICO_HOME}Início</a>` : "") + ROUTES[r]();
   if (f){ const el = document.getElementById(f); if (el){ el.focus(); if (pos!=null && el.setSelectionRange) el.setSelectionRange(pos,pos); } }
 }
 let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render, 30); };
