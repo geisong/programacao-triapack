@@ -1049,17 +1049,17 @@ function viewSequencia(){
   <div class="head"><div><h1>${esc(UI.maq)}</h1><p class="sub">Sequenciamento${m&&m.nome?` · ${esc(m.nome)}`:""} · ${impLine()}</p></div>${atualizarBtn()}</div>
   ${statusBanner()}
   <div class="panel controls">
-    <div class="mtabs" role="group" aria-label="Máquina">${ms.map(x=>`<button data-maq="${esc(x.cod)}" aria-pressed="${x.cod===UI.maq}">${esc(x.cod)} <span class="sub" style="margin:0">${S.pedidos.filter(p=>p.maquina===x.cod&&!(S.apont[p.id]&&S.apont[p.id].feito)).length}</span></button>`).join("")}</div>
+    <button class="btn" data-act="detalhes" aria-expanded="${!!UI.det}" style="align-self:flex-end">${UI.det?"Ocultar detalhes":"Detalhes"}${atras?` <span class="pill bad" style="margin-left:4px">${atras} em atraso</span>`:""}</button>
     <label class="f" style="margin-left:auto">Início da programação<input type="date" id="ini" value="${ini}"></label>
   </div>
-  <div class="kpis">
+  ${UI.det?`<div class="kpis">
     <div class="kpi"><span>Máquina</span><b>${esc(m.cod)}</b><div class="sub" style="margin:0">${esc(m.nome)}</div></div>
     <div class="kpi"><span>Pedidos na fila</span><b>${ag.seq.length}</b></div>
     <div class="kpi"><span>Caixas</span><b>${fmtN(totQ)}</b></div>
     <div class="kpi"><span>Velocidade</span><b>${fmtN(m.batidasMin*60)}/h</b><div class="sub" style="margin:0">limpeza ${m.limpeza} min · setup ${m.setup} min</div></div>
     <div class="kpi"><span>Termina em</span><b>${lastDay?dShort(lastDay):"—"}</b></div>
-    <div class="kpi"><span>Após a entrega</span><b class="${atras?"late":""}">${atras}</b></div>
-  </div>
+    <div class="kpi"><span>Pedidos em atraso</span><b class="${atras?"late":""}">${atras}</b></div>
+  </div>`:""}
   ${sem}
   <div class="seqgrid ${canEdit&&ag.seq.length?"has-fila":""}">${filaPanel(ag, UI.maq)}
   <div class="panel" style="padding:0">
@@ -1073,7 +1073,7 @@ let consultaIdx = {};
 function infoOP(x){
   const p=x.p; const late = p.entrega && x.inf && x.inf.fim && x.inf.fim.data>p.entrega;
   const med = (a,b,c) => [a,b,c].some(v=>v!=null) ? [a,b,c].map(v=>v==null?"—":fmtN(v)).join(" × ") : "—";
-  const st = x.done?`<span class="pill ok">Produzido</span>`:(late&&travada(p.maquina,p.id)?`<span class="pill bad">Após entrega</span>`:stPill(p.maquina,p.id));
+  const st = x.done?`<span class="pill ok">Produzido</span>`:(late&&travada(p.maquina,p.id)?`<span class="pill bad">Em atraso</span>`:stPill(p.maquina,p.id));
   return `<div class="top" style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><div class="seq mono" style="font-size:12px;color:var(--muted)">OP ${esc(opN(p))} · ${esc(p.maquina)}${x.n?` · seq ${x.n}`:""}</div><h2 id="detT" style="font-size:20px;margin-top:2px">${esc(p.descricao||"—")}</h2><div class="sub" style="margin:2px 0 0">${esc(p.cliente||"—")}</div></div>${st}</div>
     ${x.inf?`<div class="when">${dow(x.inf.ini.data)} ${dShort(x.inf.ini.data)} ${hm(x.inf.ini.h)} → ${x.inf.fim.data!==x.inf.ini.data?dShort(x.inf.fim.data)+" ":""}${hm(x.inf.fim.h)}</div>`:(x.done?"":`<div class="when late">Sem data no calendário</div>`)}
     <dl class="spec">
@@ -1235,6 +1235,7 @@ app.addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.cdia!==undefined){ UI.cDia = (UI.cDia===b.dataset.cdia ? "" : b.dataset.cdia); render(); return; }
   if (b.dataset.cmes){ const [y,m]=(UI.cMes||todayISO().slice(0,7)).split("-").map(Number); const d=new Date(y, m-1+Number(b.dataset.cmes), 1); UI.cMes=d.getFullYear()+"-"+pad(d.getMonth()+1); render(); return; }
+  if (b.dataset.act==="detalhes"){ UI.det=!UI.det; render(); return; }
   if (b.dataset.act==="atualizar"){ atualizar(false); return; }
   if (b.dataset.act==="gravarPlanilha"){ gravarNaPlanilha(); return; }
   if (b.dataset.act==="trocar"){ atualizar(true); return; }
