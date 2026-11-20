@@ -104,6 +104,24 @@ main>.head .linkbtn:hover{color:#fff}
 footer.foot{padding-block:18px 28px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line)}
 .panel,.kpi,.card{box-shadow:0 1px 2px rgba(16,24,32,.05),0 4px 14px rgba(16,24,32,.04)}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;background:var(--surface2);color:var(--muted);border:1px solid var(--line)}
+.calc{padding:14px 16px}
+.calc-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.calc-h b{font-size:16px}
+.calc-h .btn{min-width:40px;font-size:18px;padding:4px 10px}
+.calc-g{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;max-width:560px;margin:0 auto}
+.calc-g .cw{text-align:center;font-size:11px;font-weight:700;color:var(--muted,#6b7280)}
+.cc{position:relative;aspect-ratio:1/1;border:0;border-radius:10px;font:inherit;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1;padding:0;touch-action:manipulation}
+.cc small{font-size:10px;font-weight:700;opacity:.85;margin-top:3px}
+.cc.vazio{background:transparent;cursor:default}
+.cc.green{background:#2f9e57;color:#fff}
+.cc.yellow{background:#f2c230;color:#3a2e00}
+.cc.red{background:#d64541;color:#fff}
+.cc.off{background:var(--surface2);color:var(--muted,#6b7280)}
+.cc.hoje{box-shadow:inset 0 0 0 3px rgba(0,0,0,.35)}
+.cc.sel{outline:3px solid var(--brand);outline-offset:2px}
+.calc-l{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:center;margin-top:12px;font-size:12px}
+.calc-l i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.calc-l i.green{background:#2f9e57}.calc-l i.yellow{background:#f2c230}.calc-l i.red{background:#d64541}
 .pill.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
 .pill.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
 .pill.np{white-space:nowrap;background:var(--surface2);color:var(--muted,#6b7280);border:1px dashed currentColor}
@@ -350,7 +368,7 @@ const saveLocal = () => { try { localStorage.setItem(LKEY, JSON.stringify({maqui
 const loadLocal = () => { try { const d = JSON.parse(localStorage.getItem(LKEY)||"null"); if (d) Object.assign(S, d); } catch(e){} };
 function goLocal(){ local = true; db = null; canEdit = true; canWrite = true; dbState = "local"; loadLocal();
   document.getElementById("who").innerHTML = `<span class="pill">Neste computador</span>`; render(); }
-const UI = { maq:null, inicio:null, q:"", cMaq:"", cDia:"", showDone:false };
+const UI = { maq:null, inicio:null, q:"", cMaq:"", cDia:"", cMes:"", showDone:false };
 try { const s = JSON.parse(localStorage.getItem("triapack-ui")||"{}"); Object.assign(UI, s, {q:""}); } catch(e){}
 const saveUI = () => { try { localStorage.setItem("triapack-ui", JSON.stringify({maq:UI.maq,cMaq:UI.cMaq})); } catch(e){} };
 
@@ -1082,6 +1100,40 @@ function abrirOP(id){
   const f = d.querySelector('[data-act="fecharOP"]'); if (f) f.focus();
 }
 function fecharOP(){ const d=document.getElementById("det"); d.hidden=true; const r=document.querySelector(`tr[data-op="${CSS.escape(d.dataset.op||"")}"]`); if (r) r.focus(); }
+/* Calendário da Consulta: verde = tem programação, amarelo = sem programação, vermelho = OP sem finalizar em atraso */
+function calConsulta(all){
+  const hoje = todayISO(), mes = UI.cMes || hoje.slice(0,7);
+  const [Y,M] = mes.split("-").map(Number);
+  const dim = new Date(Y, M, 0).getDate(), ini = new Date(Y, M-1, 1).getDay();
+  const iso = d => `${Y}-${pad(M)}-${pad(d)}`;
+  const exp = {}; S.calendario.forEach(c=>{ exp[c.data] = !!(c.turnos && c.turnos.length); });
+  const prog = {}, atr = {};
+  const marca = (o, a, b, op) => { for (let d=1; d<=dim; d++){ const k=iso(d); if (k>=a && k<=b) (o[k]=o[k]||[]).push(op); } };
+  for (const x of all){
+    if (x.done) continue; const p = x.p, op = opN(p);
+    const filtroMaq = !UI.cMaq || p.maquina===UI.cMaq; if (!filtroMaq) continue;
+    if (x.inf && x.inf.fim && travada(p.maquina, p.id)){
+      marca(prog, x.inf.ini.data, x.inf.fim.data, op);
+      if (p.entrega && x.inf.fim.data > p.entrega) marca(atr, x.inf.ini.data, x.inf.fim.data, op);
+    }
+    if (p.entrega && p.entrega < hoje){ marca(atr, p.entrega, p.entrega, op); marca(atr, hoje, hoje, op); }
+  }
+  const cel = [];
+  for (let i=0;i<ini;i++) cel.push(`<span class="cc vazio"></span>`);
+  for (let d=1; d<=dim; d++){
+    const k = iso(d);
+    const st = atr[k] ? "red" : prog[k] ? "green" : (exp[k]===false || k<hoje ? "off" : "yellow");
+    const tip = atr[k] ? `Em atraso: ${[...new Set(atr[k])].join(", ")}` : prog[k] ? `${new Set(prog[k]).size} OP programada(s)` : (st==="off" ? (k<hoje ? "Dia passado" : "Sem expediente") : "Sem programação");
+    cel.push(`<button class="cc ${st}${k===hoje?" hoje":""}${UI.cDia===k?" sel":""}" data-cdia="${k}" title="${esc(tip)}" aria-label="${dBR(k)}: ${esc(tip)}">${d}${prog[k]?`<small>${new Set(prog[k]).size}</small>`:""}</button>`);
+  }
+  const nome = new Date(Y, M-1, 1).toLocaleDateString("pt-BR",{month:"long", year:"numeric"});
+  return `<section class="panel calc">
+    <div class="calc-h"><button class="btn" data-cmes="-1" aria-label="Mês anterior">‹</button><b>${nome.charAt(0).toUpperCase()+nome.slice(1)}</b><button class="btn" data-cmes="1" aria-label="Próximo mês">›</button></div>
+    <div class="calc-g">${["D","S","T","Q","Q","S","S"].map(x=>`<span class="cw">${x}</span>`).join("")}${cel.join("")}</div>
+    <div class="calc-l"><span><i class="green"></i>Com programação</span><span><i class="yellow"></i>Sem programação</span><span><i class="red"></i>OP em atraso</span>${UI.cDia?`<button class="linkbtn" data-cdia="">Mostrar todos os dias</button>`:`<span class="sub" style="margin:0">Toque no dia para filtrar</span>`}</div>
+  </section>`;
+}
+
 function viewConsulta(){
   const ms = maqList();
   if (!S.pedidos.length) return `<div class="head"><div><h1>Consulta da produção</h1><p class="sub">${impLine()}</p></div>${atualizarBtn()}</div>${statusBanner()}${emptyState()}`;
@@ -1092,7 +1144,7 @@ function viewConsulta(){
   all.concat(done).forEach(x=>consultaIdx[x.p.id]=x);
   let list = all.concat(UI.showDone?done:[]);
   if (UI.cMaq) list = list.filter(x=>x.p.maquina===UI.cMaq);
-  if (UI.cDia) list = list.filter(x=>x.inf && x.inf.ini.data<=UI.cDia && x.inf.fim && x.inf.fim.data>=UI.cDia);
+  if (UI.cDia) list = list.filter(x=>(x.inf && x.inf.ini.data<=UI.cDia && x.inf.fim && x.inf.fim.data>=UI.cDia) || (!x.done && x.p.entrega && x.p.entrega<todayISO() && (x.p.entrega===UI.cDia || UI.cDia===todayISO())));
   const q = UI.q.trim().toUpperCase();
   if (q) list = list.filter(x=>[x.p.op,x.p.codigo,x.p.descricao,x.p.cliente,x.p.modelo,x.p.onda,...(x.p.cores||[])].join(" ").toUpperCase().includes(q));
   const dias = [...new Set(S.calendario.filter(d=>d.turnos&&d.turnos.length&&d.data>=todayISO()).map(d=>d.data))].sort().slice(0,20);
@@ -1108,10 +1160,11 @@ function viewConsulta(){
   return `
   <div class="head"><div><h1>Consulta da produção</h1><p class="sub">${impLine()} · Clique na OP para ver todas as informações.</p></div>${atualizarBtn()}</div>
   ${statusBanner()}
+  ${calConsulta(all.concat(done))}
   <div class="panel controls">
     <label class="f">Buscar<input type="search" id="q" value="${esc(UI.q)}" placeholder="OP, cliente, produto, cor…"></label>
     <label class="f">Máquina<select id="cMaq"><option value="">Todas</option>${ms.map(m=>`<option value="${esc(m.cod)}" ${UI.cMaq===m.cod?"selected":""}>${esc(m.cod)}</option>`).join("")}</select></label>
-    <label class="f">Dia<select id="cDia"><option value="">Todos</option>${dias.map(d=>`<option value="${d}" ${UI.cDia===d?"selected":""}>${dow(d).slice(0,3)} ${dBR(d)}</option>`).join("")}</select></label>
+    <label class="f">Dia<select id="cDia"><option value="">Todos</option>${(UI.cDia&&!dias.includes(UI.cDia)?[UI.cDia,...dias]:dias).map(d=>`<option value="${d}" ${UI.cDia===d?"selected":""}>${dow(d).slice(0,3)} ${dBR(d)}</option>`).join("")}</select></label>
     <label class="f" style="flex-direction:row;display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px"><input type="checkbox" id="showDone" ${UI.showDone?"checked":""}> Mostrar produzidos</label>
   </div>
   ${porMaq.length ? porMaq.map(g=>`<section class="panel" style="padding:0"><div class="mhead"><h2>${esc(g.m.cod)}</h2><span class="sub" style="margin:0">${esc(g.m.nome)} · ${g.itens.length} OP</span></div>
@@ -1180,6 +1233,8 @@ let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render
 /* ---------- eventos ---------- */
 app.addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.cdia!==undefined){ UI.cDia = (UI.cDia===b.dataset.cdia ? "" : b.dataset.cdia); render(); return; }
+  if (b.dataset.cmes){ const [y,m]=(UI.cMes||todayISO().slice(0,7)).split("-").map(Number); const d=new Date(y, m-1+Number(b.dataset.cmes), 1); UI.cMes=d.getFullYear()+"-"+pad(d.getMonth()+1); render(); return; }
   if (b.dataset.act==="atualizar"){ atualizar(false); return; }
   if (b.dataset.act==="gravarPlanilha"){ gravarNaPlanilha(); return; }
   if (b.dataset.act==="trocar"){ atualizar(true); return; }
