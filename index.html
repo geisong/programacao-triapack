@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261120181137";</script>
+<script>window.APP_VERSAO="20261120181436";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -122,24 +122,24 @@ main>.head .linkbtn:hover{color:#fff}
 footer.foot{padding-block:18px 28px;color:var(--muted);font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line)}
 .panel,.kpi,.card{box-shadow:0 1px 2px rgba(16,24,32,.05),0 4px 14px rgba(16,24,32,.04)}
 .pill{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;background:var(--surface2);color:var(--muted);border:1px solid var(--line)}
-.calc{padding:14px 16px}
-.calc-h{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 8px;margin-bottom:10px}
-.calc-h b{font-size:16px}
+.calc{padding:10px 12px}
+.calc-h{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:2px 8px;margin-bottom:6px;font-size:12px}
+.calc-h b{font-size:14px}
 .calc-h .btn{min-width:40px;font-size:18px;padding:4px 10px}
-.calc-g{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;max-width:620px;margin:0 auto}
+.calc-g{display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin;padding:2px 2px 4px}
 .calc-g .cw{text-align:center;font-size:11px;font-weight:700;color:var(--muted,#6b7280)}
-.cc{position:relative;aspect-ratio:1/1;border:0;border-radius:10px;font:inherit;font-weight:800;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1;padding:0;touch-action:manipulation}
-.cc small{font-size:10px;font-weight:700;opacity:.85;margin-top:3px}
-.cc em{font-style:normal;font-size:10px;font-weight:700;text-transform:uppercase;opacity:.8;margin:2px 0}
+.cc{position:relative;flex:1 0 44px;max-width:72px;height:50px;border:0;border-radius:7px;font:inherit;font-weight:800;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-direction:column;line-height:1;padding:0;touch-action:manipulation}
+.cc small{display:none}
+.cc em{font-style:normal;font-size:9px;font-weight:700;text-transform:uppercase;opacity:.8;margin:1px 0}
 .cc.vazio{background:transparent;cursor:default}
 .cc.green{background:#2f9e57;color:#fff}
 .cc.yellow{background:#f2c230;color:#3a2e00}
 .cc.red{background:#d64541;color:#fff}
 .cc.off{background:var(--surface2);color:var(--muted,#6b7280)}
-.cc.hoje{box-shadow:inset 0 0 0 3px rgba(0,0,0,.35)}
-.cc.sel{outline:3px solid var(--brand);outline-offset:2px}
-.calc-l{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:center;margin-top:12px;font-size:12px}
-.calc-l i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.cc.hoje{box-shadow:inset 0 0 0 2px rgba(0,0,0,.35)}
+.cc.sel{outline:2px solid var(--brand);outline-offset:1px}
+.calc-l{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin-top:6px;font-size:11px}
+.calc-l i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .calc-l i.green{background:#2f9e57}.calc-l i.yellow{background:#f2c230}.calc-l i.red{background:#d64541}
 .pill.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
 .pill.bad{background:var(--bad-soft);color:var(--bad);border-color:transparent}
@@ -1151,7 +1151,7 @@ function calConsulta(all){
     return `<button class="cc ${st}${k===hoje?" hoje":""}${UI.cDia===k?" sel":""}" data-cdia="${k}" title="${esc(tip)}" aria-label="${dow(k)} ${dBR(k)}: ${esc(tip)}"><em>${dow(k).slice(0,3)}</em>${Number(k.slice(8,10))}${k.slice(5,7)!==hoje.slice(5,7)||passados.includes(k)?`<em>${mesDe(k).slice(0,3)}</em>`:""}${prog[k]?`<small>${prog[k].size} OP</small>`:""}</button>`;
   }).join("");
   return `<section class="panel calc">
-    <div class="calc-h"><b>${titulo.charAt(0).toUpperCase()+titulo.slice(1)}</b><span class="sub" style="margin:0">Próximos ${proximos.length} dias de produção</span></div>
+    <div class="calc-h"><b>${titulo.charAt(0).toUpperCase()+titulo.slice(1)}</b><span class="sub" style="margin:0;font-size:11px">Próximos ${proximos.length} dias de produção</span></div>
     <div class="calc-g">${cel}</div>
     <div class="calc-l"><span><i class="green"></i>Com programação</span><span><i class="yellow"></i>Sem programação</span><span><i class="red"></i>OP em atraso</span>${UI.cDia?`<button class="linkbtn" data-cdia="">Mostrar todos os dias</button>`:`<span class="sub" style="margin:0">Toque no dia para filtrar</span>`}</div>
   </section>`;
