@@ -695,7 +695,9 @@ const maqList = () => Object.values(S.maquinas).sort((a,b)=>a.cod.localeCompare(
 const firstDay = () => { const t = todayISO(); const d = S.calendario.filter(x=>x.data>=t && x.turnos && x.turnos.length).sort((a,b)=>a.data.localeCompare(b.data))[0]; return d ? d.data : t; };
 const ICO_REF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
 let busy = false, temArquivo = false;
-const atualizarBtn = () => `<div class="upd"><button class="btn-ico" data-act="relatorio">${ICO_PRT}Imprimir programação</button>` + (canEdit ? `${temArquivo?`<button class="linkbtn" data-act="trocar">Trocar arquivo</button>`:""}<button class="primary btn-ico ${busy?"spin":""}" data-act="atualizar" ${busy?"disabled":""}>${ICO_REF}${busy?"Atualizando…":"Atualizar"}</button>` : "") + `</div>`;
+const atualizarBtn = (home) => home
+  ? (canEdit ? `<div class="upd">${temArquivo?`<button class="linkbtn" data-act="trocar">Trocar arquivo</button>`:""}<button class="primary btn-ico ${busy?"spin":""}" data-act="atualizar" ${busy?"disabled":""}>${ICO_REF}${busy?"Atualizando…":"Atualizar"}</button></div>` : "")
+  : `<div class="upd"><button class="btn-ico" data-act="relatorio">${ICO_PRT}Imprimir programação</button></div>`;
 
 /* ---------- relatório PDF da programação por máquina e período ---------- */
 const ICO_PRT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></svg>`;
@@ -842,7 +844,7 @@ function statusBanner(){
   return "";
 }
 function emptyState(){
-  return `<div class="panel empty"><h2>Nenhum pedido carregado</h2><p class="sub">A programação vem da planilha <span class="mono">PROGRAMACAO_TRIAPACK.xlsx</span>. ${canEdit?"Clique em <b>Atualizar</b> para carregar.":"Peça ao programador para atualizar."}</p>${atualizarBtn()}</div>`;
+  return `<div class="panel empty"><h2>Nenhum pedido carregado</h2><p class="sub">A programação vem da planilha <span class="mono">PROGRAMACAO_TRIAPACK.xlsx</span>. ${canEdit?"Volte ao <b>Início</b> e clique em <b>Atualizar</b> para carregar.":"Peça ao programador para atualizar."}</p>${atualizarBtn()}</div>`;
 }
 
 function viewSequencia(){
@@ -986,7 +988,7 @@ const ICO_HOME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 function viewInicio(){
   const pend = S.pedidos.filter(p=>!(S.apont[p.id]&&S.apont[p.id].feito)).length;
   const nm = maqList().length;
-  return `<div class="head"><div><h1>Início</h1><p class="sub">Escolha o que deseja fazer.</p></div></div>
+  return `<div class="head"><div><h1>Início</h1><p class="sub">${S.pedidos.length ? impLine() : "Escolha o que deseja fazer."}</p></div>${atualizarBtn(true)}</div>${canEdit ? statusBanner() : ""}
   <div class="home">
     <a class="tile" href="#sequencia"><span class="ic">${ICO_SEQ}</span><span><b>Sequenciamento</b><small>Ordem de produção por máquina</small></span></a>
     <a class="tile" href="#consulta"><span class="ic">${ICO_BUS}</span><span><b>Consulta da produção</b><small>${pend} OP${pend===1?"":"s"} a produzir</small></span></a>
