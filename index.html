@@ -126,6 +126,11 @@ footer.foot{padding-block:18px 28px;color:var(--muted);font-size:12px;display:fl
 .prod-l .t{min-width:0;overflow-wrap:anywhere}
 @media (max-width:640px){.prod-l li{flex-direction:column;align-items:stretch}}
 .okb{color:var(--ok);font-weight:700}
+.fld{display:grid;gap:6px;font-weight:600;font-size:13px}
+.fld input{font-size:18px;padding:10px 12px}
+.fin{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:grid;gap:10px;margin:0}
+.fin legend{font-weight:600;font-size:13px;padding:0 4px}
+.fin label{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;cursor:pointer}
 .pill.acc{background:var(--accent-soft);color:var(--accent);border-color:transparent}
 main{padding-block:28px 40px;display:grid;gap:18px}
 h1{font-family:var(--f-display);font-size:22px;font-weight:700;margin:0;text-wrap:balance}
@@ -308,6 +313,13 @@ body{touch-action:manipulation;overflow-x:hidden}
     <div class="log" id="log" hidden></div>
   </div>
 </div>
+<div class="mdl" id="apt" hidden style="z-index:30"><div class="box" role="dialog" aria-modal="true" aria-labelledby="aptT"><h2 id="aptT" style="margin:0">Apontar produção</h2><p class="sub" id="aptOP" style="margin:0"></p>
+<label class="fld"><span>Quantidade produzida (caixas)</span><input id="aptQ" type="number" inputmode="numeric" min="1" step="1"></label>
+<fieldset class="fin"><legend>Finalizar a OP?</legend>
+<label><input type="radio" name="aptF" value="sim"> <b>Sim, finalizar</b> <span class="sub" style="margin:0">a OP sai da programação</span></label>
+<label><input type="radio" name="aptF" value="nao"> <b>Não finalizar</b> <span class="sub" style="margin:0" id="aptSaldo">o saldo volta para ser reprogramado</span></label></fieldset>
+<div class="notice err" id="aptMsg" hidden></div>
+<div class="controls" style="justify-content:flex-end"><button data-act="aptCancel">Cancelar</button><button class="primary" data-act="aptOk">Confirmar</button></div></div></div>
 <div class="mdl" id="det" hidden><div class="box" role="dialog" aria-modal="true" aria-labelledby="detT"></div></div>
 <div class="mdl" id="viewer" hidden style="z-index:25"><div class="box vbox" role="dialog" aria-modal="true" aria-labelledby="viewT"><div class="head" style="align-items:center"><h2 id="viewT">Desenho</h2><button class="primary" data-act="fecharDes">Fechar</button></div><div class="vbody"></div><p class="sub" style="margin:0">Clique no desenho para ampliar. No celular, use dois dedos (pinça).</p></div></div>
 <div class="mdl" id="rel" hidden><div class="box" role="dialog" aria-modal="true" aria-labelledby="relT">
@@ -401,11 +413,14 @@ function sequenciar(list){
 
 /* ordem manual (arrastar) + OPs travadas: a OP travada fica fixa na posição; as outras ocupam as posições livres */
 const LOCK_I = `<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
-const stPill = (cod,id) => travada(cod,id) ? `<span class="pill ok">${LOCK_I}Programado</span>` : `<span class="pill np">${UNLOCK_I}Não programado</span>`;
+const stPill = (cod,id) => reprog(id) ? `<span class="pill np">${UNLOCK_I}Reprogramar saldo</span>` : travada(cod,id) ? `<span class="pill ok">${LOCK_I}Programado</span>` : `<span class="pill np">${UNLOCK_I}Não programado</span>`;
 const UNLOCK_I = `<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1.9"/></svg>`;
+const produzido = p => Number(S.apont[p.id] && S.apont[p.id].produzido) || 0;
+const saldo = p => Math.max(0, (Number(p.quantidade)||0) - produzido(p));
+const reprog = id => !!(S.apont[id] && !S.apont[id].feito && S.apont[id].reprogramar);
 const opN = p => (p && (p.op || p.codigo)) || "—";
 const travas = cod => S.travas[cod] || {};
-const travada = (cod, id) => Object.prototype.hasOwnProperty.call(travas(cod), id);
+const travada = (cod, id) => Object.prototype.hasOwnProperty.call(travas(cod), id) && !reprog(id);
 function ordenar(cod, pend){
   const auto = sequenciar(pend); const man = S.ordem[cod];
   let base = auto;
@@ -431,7 +446,9 @@ async function gravarOrdem(cod){
   const ref = db.doc("ordem/"+idSafe(cod)); const ids = S.ordem[cod]||[]; const tv = S.travas[cod]||{};
   try { if (ids.length || Object.keys(tv).length) await ref.set({maquina:cod, ids, travas:tv, em:new Date().toISOString()}); else await ref.delete(); }
   catch(e){ alertMsg("Não foi possível salvar a ordem: "+(e&&(e.message||e.code))); return; }
-  for (const p of S.pedidos.filter(p=>p.maquina===cod && S.apont[p.id] && !S.apont[p.id].feito)){ try { await db.doc("apontamentos/"+p.id).delete(); } catch(e){} }
+  for (const p of S.pedidos.filter(p=>p.maquina===cod && S.apont[p.id] && !S.apont[p.id].feito && Number.isInteger(S.apont[p.id].pos))){
+    const a = {...S.apont[p.id]}; delete a.pos;
+    try { if (a.produzido) await db.doc("apontamentos/"+p.id).set(a); else await db.doc("apontamentos/"+p.id).delete(); } catch(e){} }
 }
 async function salvarOrdem(cod, ids){
   if (ids) S.ordem[cod] = ids; else delete S.ordem[cod];
@@ -443,7 +460,10 @@ async function alternarTrava(cod, id){
   const tv = {...travas(cod)};
   if (travada(cod, id)) delete tv[id];
   else tv[id] = pos;
+  const eraReprog = reprog(id);
+  if (eraReprog){ const ap={...S.apont[id]}; delete ap.reprogramar; S.apont[id]=ap; }
   S.travas[cod] = tv; render(); await gravarOrdem(cod);
+  if (eraReprog) await gravarApont(id, S.apont[id]);
 }
 function alertMsg(t){ const el=document.getElementById("filaMsg"); if (el){ el.textContent=t; el.hidden=false; } }
 function filaPanel(ag, cod){
@@ -454,7 +474,7 @@ function filaPanel(ag, cod){
   return `<section class="panel fila" aria-label="Ordem da fila">
     <div class="head"><h2>Ordem da fila</h2><span style="display:flex;gap:6px"><span class="pill ok">${nT} programada${nT===1?"":"s"}</span>${ag.seq.length-nT?`<span class="pill np">${ag.seq.length-nT} não programada${ag.seq.length-nT===1?"":"s"}</span>`:""}${man?`<span class="pill acc">Manual</span>`:`<span class="pill">Automática</span>`}</span></div>
     <p class="sub" style="margin:0">Arraste um pedido para a posição desejada (ou use as setas). Use ✓ quando a OP for produzida. Clique no cadeado para marcar a OP como <b>Programado</b>: ela fica fixa na posição quando entrarem OPs novas. Sem o cadeado, a OP aparece como <b>Não programado</b>.</p>
-    <ol class="fila-l" id="fila">${ag.seq.map((q,i)=>{ const L = travada(cod,q.p.id); return `<li draggable="${L?"false":"true"}" class="${L?"locked":""}" data-id="${esc(q.p.id)}"><span class="grip" aria-hidden="true">${L?"":"⋮⋮"}</span><span class="mono n">${q.n}</span><span class="t"><b>OP ${esc(opN(q.p))}</b> ${esc(q.p.descricao)}<span class="dots">${(q.p.cores||[]).map(c=>`<i title="${esc(c)}" style="background:${SW[corBase(c)]||"transparent"}"></i>`).join("")}</span></span><span class="mv"><button class="small lockbtn st ${L?"on":""}" data-lock="${esc(q.p.id)}" title="${L?"Marcar como não programado":"Marcar como programado"}" aria-label="OP ${esc(opN(q.p))}: ${L?"programado":"não programado"}">${L?LOCK_I+"Programado":UNLOCK_I+"Não prog."}</button><button class="small okbtn" data-feito="${esc(q.p.id)}" title="Marcar como produzido" aria-label="Marcar OP ${esc(opN(q.p))} como produzido">✓</button><button class="small" data-mv="-1" data-id="${esc(q.p.id)}" aria-label="Subir" ${i===0||L?"disabled":""}>▲</button><button class="small" data-mv="1" data-id="${esc(q.p.id)}" aria-label="Descer" ${i===last||L?"disabled":""}>▼</button></span></li>`; }).join("")}</ol>
+    <ol class="fila-l" id="fila">${ag.seq.map((q,i)=>{ const L = travada(cod,q.p.id); return `<li draggable="${L?"false":"true"}" class="${L?"locked":""}" data-id="${esc(q.p.id)}"><span class="grip" aria-hidden="true">${L?"":"⋮⋮"}</span><span class="mono n">${q.n}</span><span class="t"><b>OP ${esc(opN(q.p))}</b> ${esc(q.p.descricao)}<span class="dots">${(q.p.cores||[]).map(c=>`<i title="${esc(c)}" style="background:${SW[corBase(c)]||"transparent"}"></i>`).join("")}</span></span><span class="mv"><button class="small lockbtn st ${L?"on":""}" data-lock="${esc(q.p.id)}" title="${L?"Marcar como não programado":"Marcar como programado"}" aria-label="OP ${esc(opN(q.p))}: ${L?"programado":"não programado"}">${L?LOCK_I+"Programado":UNLOCK_I+(reprog(q.p.id)?"Reprogr.":"Não prog.")}</button><button class="small okbtn" data-prod="${esc(q.p.id)}" title="Marcar como produzido" aria-label="Marcar OP ${esc(opN(q.p))} como produzido">✓</button><button class="small" data-mv="-1" data-id="${esc(q.p.id)}" aria-label="Subir" ${i===0||L?"disabled":""}>▲</button><button class="small" data-mv="1" data-id="${esc(q.p.id)}" aria-label="Descer" ${i===last||L?"disabled":""}>▼</button></span></li>`; }).join("")}</ol>
     <div class="notice err" id="filaMsg" hidden></div>
     ${man?`<div><button data-act="auto">Voltar à ordem automática</button></div>`:""}
     ${(()=>{ const n = S.pedidos.filter(p=>p.maquina===cod && S.apont[p.id] && S.apont[p.id].feito).length; return n ? `<a class="sub" href="#produzidas" style="margin:0">${n} OP${n===1?"":"s"} produzida${n===1?"":"s"} nesta máquina · ver em Ordens produzidas</a>` : ""; })()}
@@ -468,7 +488,7 @@ function agendar(cod, inicio){
   const L = Number(m.limpeza)||0, SU = Number(m.setup)||0;
   const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
   const seq = ordenar(cod, pend);
-  const queue = seq.map((s,i)=>({...s, n:i+1, rest:Number(s.p.quantidade)||0, started:false}));
+  const queue = seq.map((s,i)=>({...s, n:i+1, rest:saldo(s.p), started:false}));
   const dias = []; const info = {};
   const cal = S.calendario.filter(d=>d.data>=inicio && d.turnos && d.turnos.length).sort((a,b)=>a.data.localeCompare(b.data));
   let qi = 0;
@@ -882,7 +902,7 @@ function viewMaqEscolha(ms){
   <div class="home maqs">${ms.map(m=>{
     const pend = S.pedidos.filter(p=>p.maquina===m.cod&&!(S.apont[p.id]&&S.apont[p.id].feito));
     let fim = ""; try { const ag = agendar(m.cod, ini); const ld = ag.dias.length ? ag.dias[ag.dias.length-1].data : null; if (pend.length && ld) fim = ` · até ${dBR(ld)}`; } catch(e){}
-    const cx = pend.reduce((t,p)=>t+(Number(p.quantidade)||0),0);
+    const cx = pend.reduce((t,p)=>t+saldo(p),0);
     return `<a class="tile${pend.length?"":" vazio"}" href="#sequencia/${encodeURIComponent(m.cod)}"><span class="ic">${ICO_MAQ}</span><span><b>${esc(m.cod)}</b><small>${esc(m.nome||"")}</small><small class="cnt">${pend.length} OP${pend.length===1?"":"s"}${pend.length?` · ${fmtN(cx)} caixas`:""}${fim}</small></span></a>`;
   }).join("")}</div>`;
 }
@@ -894,7 +914,7 @@ function viewSequencia(){
   UI.maq = sel;
   const ini = UI.inicio || firstDay();
   const m = S.maquinas[UI.maq]; const ag = agendar(UI.maq, ini);
-  const totQ = ag.seq.reduce((s,q)=>s+(Number(q.p.quantidade)||0),0);
+  const totQ = ag.seq.reduce((s,q)=>s+saldo(q.p),0);
   const lastDay = ag.dias.length ? ag.dias[ag.dias.length-1].data : null;
   const atras = ag.seq.filter(q=>{ const f=ag.info[q.p.id]; return q.p.entrega && (!f || (f.fim && f.fim.data > q.p.entrega)); }).length;
   let rows = "";
@@ -942,13 +962,14 @@ let consultaIdx = {};
 function infoOP(x){
   const p=x.p; const late = p.entrega && x.inf && x.inf.fim && x.inf.fim.data>p.entrega;
   const med = (a,b,c) => [a,b,c].some(v=>v!=null) ? [a,b,c].map(v=>v==null?"—":fmtN(v)).join(" × ") : "—";
-  const st = x.done?`<span class="pill ok">Produzido</span>`:(late?`<span class="pill bad">Após entrega</span>`:`<span class="pill acc">Programado</span>`);
+  const st = x.done?`<span class="pill ok">Produzido</span>`:(late&&travada(p.maquina,p.id)?`<span class="pill bad">Após entrega</span>`:stPill(p.maquina,p.id));
   return `<div class="top" style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><div><div class="seq mono" style="font-size:12px;color:var(--muted)">OP ${esc(opN(p))} · ${esc(p.maquina)}${x.n?` · seq ${x.n}`:""}</div><h2 id="detT" style="font-size:20px;margin-top:2px">${esc(p.descricao||"—")}</h2><div class="sub" style="margin:2px 0 0">${esc(p.cliente||"—")}</div></div>${st}</div>
     ${x.inf?`<div class="when">${dow(x.inf.ini.data)} ${dShort(x.inf.ini.data)} ${hm(x.inf.ini.h)} → ${x.inf.fim.data!==x.inf.ini.data?dShort(x.inf.fim.data)+" ":""}${hm(x.inf.fim.h)}</div>`:(x.done?"":`<div class="when late">Sem data no calendário</div>`)}
     <dl class="spec">
       <div><dt>OP</dt><dd>${esc(opN(p))}</dd></div>
       <div><dt>Código do produto</dt><dd>${esc(p.codigo||"—")}</dd></div>
       <div><dt>Quantidade</dt><dd>${fmtN(p.quantidade)} cx</dd></div>
+      ${produzido(p)?`<div><dt>Já produzido</dt><dd>${fmtN(produzido(p))} cx</dd></div><div><dt>Saldo</dt><dd>${fmtN(saldo(p))} cx</dd></div>`:""}
       <div><dt>Modelo da caixa</dt><dd>${esc(p.modelo||"—")}</dd></div>
       <div><dt>Tipo de onda</dt><dd>${esc(p.onda||"—")}</dd></div>
       <div><dt>Medida interna C × L × A</dt><dd>${med(p.cxComp,p.cxLarg,p.cxAlt)} mm</dd></div>
@@ -960,7 +981,7 @@ function infoOP(x){
       <div><dt>Linha na planilha</dt><dd>${esc(p.linha||"—")}</dd></div>
     </dl>
     <dl class="spec" style="grid-template-columns:1fr"><div><dt>Cores</dt><dd style="margin-top:4px">${chips(p.cores)}</dd></div></dl>
-    <div class="controls" style="justify-content:flex-end">${p.desenhoH?`<button class="btn-ico" data-des="${esc(p.id)}" style="margin-right:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M8 5v14M16 5v14M3 10h18"/></svg>Abrir desenho</button>`:(p.desenhoLink?`<a class="btn-ico" style="margin-right:auto;font-weight:600" href="${esc(p.desenhoLink)}" target="_blank" rel="noopener">Abrir desenho</a>`:`<span class="sub" style="margin:0 auto 0 0">Sem desenho na planilha</span>`)}${canWrite && !x.done ? `<button class="btn-ico okb" data-feito="${esc(p.id)}">✓ Marcar como produzido</button>` : ""}<button class="primary" data-act="fecharOP">Fechar</button></div>`;
+    <div class="controls" style="justify-content:flex-end">${p.desenhoH?`<button class="btn-ico" data-des="${esc(p.id)}" style="margin-right:auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="1"/><path d="M8 5v14M16 5v14M3 10h18"/></svg>Abrir desenho</button>`:(p.desenhoLink?`<a class="btn-ico" style="margin-right:auto;font-weight:600" href="${esc(p.desenhoLink)}" target="_blank" rel="noopener">Abrir desenho</a>`:`<span class="sub" style="margin:0 auto 0 0">Sem desenho na planilha</span>`)}${canWrite && !x.done ? `<button class="btn-ico okb" data-prod="${esc(p.id)}">✓ Marcar como produzido</button>` : ""}<button class="primary" data-act="fecharOP">Fechar</button></div>`;
 }
 function abrirOP(id){
   const x = consultaIdx[id]; if (!x) return;
@@ -988,8 +1009,8 @@ function viewConsulta(){
   const row = x => { const p=x.p; const late = p.entrega && x.inf && x.inf.fim && x.inf.fim.data>p.entrega;
     return `<tr class="op ${x.done?"done":""}" data-op="${esc(p.id)}" tabindex="0" aria-label="Abrir OP ${esc(opN(p))}">
       <td class="mono num">${x.n||"✓"}</td><td class="mono"><b>${esc(opN(p))}</b></td><td>${esc(p.descricao)}<div class="st-m">${x.done?`<span class="pill ok">Produzido</span>`:stPill(p.maquina,p.id)}</div></td><td>${esc(p.cliente)}</td><td>${dots(p.cores)}</td>
-      <td class="num">${fmtN(p.quantidade)}</td><td class="mono">${when(x)}</td><td class="mono">${whenF(x)}</td>
-      <td>${x.done?`<span class="pill ok">Produzido</span>`:(!travada(p.maquina,p.id)?`<span class="pill np">Não programado</span>`:(late?`<span class="pill bad">Programado · atrasa</span>`:`<span class="pill acc">Programado</span>`))}</td></tr>`; };
+      <td class="num">${fmtN(x.done?p.quantidade:saldo(p))}${!x.done&&produzido(p)?`<div class="sub" style="margin:0">de ${fmtN(p.quantidade)}</div>`:""}</td><td class="mono">${when(x)}</td><td class="mono">${whenF(x)}</td>
+      <td>${x.done?`<span class="pill ok">Produzido</span>`:(!travada(p.maquina,p.id)?`<span class="pill np">${reprog(p.id)?"Reprogramar saldo":"Não programado"}</span>`:(late?`<span class="pill bad">Programado · atrasa</span>`:`<span class="pill acc">Programado</span>`))}</td></tr>`; };
   const porMaq = ms.map(m=>({m, itens:list.filter(x=>x.p.maquina===m.cod)})).filter(g=>g.itens.length);
   return `
   <div class="head"><div><h1>Consulta da produção</h1><p class="sub">${impLine()} · Clique na OP para ver todas as informações.</p></div>${atualizarBtn()}</div>
@@ -1043,12 +1064,12 @@ function viewInicio(){
 }
 const ICO_OK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/></svg>`;
 function viewProduzidas(){
-  const lista = S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).sort((a,b)=>String(S.apont[b.id].em||"").localeCompare(String(S.apont[a.id].em||"")));
+  const lista = S.pedidos.filter(p=>S.apont[p.id]&&(S.apont[p.id].feito||produzido(p)>0)).sort((a,b)=>String(S.apont[b.id].em||"").localeCompare(String(S.apont[a.id].em||"")));
   const quando = iso => iso ? new Date(iso).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}) : "—";
   const porMaq = maqList().map(m=>({m, itens:lista.filter(p=>p.maquina===m.cod)})).filter(g=>g.itens.length);
   return `<div class="head"><div><h1>Ordens produzidas</h1><p class="sub">${lista.length} OP${lista.length===1?"":"s"} marcada${lista.length===1?"":"s"} como produzida${lista.length===1?"":"s"}. Se marcou por engano, use <b>Desmarcar</b>: a OP volta para a mesma posição da sequência.</p></div></div>
   ${porMaq.length ? porMaq.map(g=>`<section class="panel" style="padding:0;margin-bottom:16px"><div class="grp-h"><b>${esc(g.m.cod)}</b> <span class="sub" style="margin:0">${esc(g.m.nome||"")} · ${g.itens.length} OP${g.itens.length===1?"":"s"}</span></div>
-    <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${fmtN(p.quantidade)} cx · produzida em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">Desmarcar como produzida</button>`:""}</li>`).join("")}</ul></section>`).join("")
+    <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx em reprogramação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("")
   : `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>`}`;
 }
 const ROUTES = {inicio:viewInicio, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
@@ -1074,26 +1095,59 @@ app.addEventListener("click", async e => {
   if (b.dataset.lock){ alternarTrava(UI.maq, b.dataset.lock); return; }
   if (b.dataset.mv){ const ids=filaIds(); const i=ids.indexOf(b.dataset.id); const d=Number(b.dataset.mv); let j=i+d; while (j>=0 && j<ids.length && travada(UI.maq, ids[j])) j+=d; if (i<0||j<0||j>=ids.length) return; [ids[i],ids[j]]=[ids[j],ids[i]]; salvarOrdem(UI.maq, ids); return; }
   if (b.dataset.feito) toggleFeito(b);
+  if (b.dataset.prod) abrirApontar(b.dataset.prod);
 });
-async function toggleFeito(b){
-  const id=b.dataset.feito; const p=S.pedidos.find(x=>x.id===id); if (!p) return;
-  const era = S.apont[id] && S.apont[id].feito; let dado;
-  if (!era){
+async function gravarApont(id, dado){
+  if (local){ if (dado) S.apont[id]=dado; else delete S.apont[id]; saveLocal(); return true; }
+  if (!db) return false;
+  try{ if (dado) await db.doc("apontamentos/"+id).set(dado); else await db.doc("apontamentos/"+id).delete(); if (dado) S.apont[id]=dado; else delete S.apont[id]; return true; }
+  catch(err){ if (err && err.code==="invalid_argument"){ canWrite=false; } toast("Não foi possível gravar: "+(err&&(err.message||err.code)), true); return false; }
+}
+function abrirApontar(id){
+  const p=S.pedidos.find(x=>x.id===id); if (!p) return;
+  const d=document.getElementById("apt"); d.dataset.id=id;
+  d.querySelector("#aptOP").innerHTML = `OP <b>${esc(opN(p))}</b> · ${esc(p.descricao)} · ${esc(p.maquina)}<br>Quantidade da OP: <b>${fmtN(p.quantidade)}</b> cx${produzido(p)?` · já produzido: <b>${fmtN(produzido(p))}</b> · saldo: <b>${fmtN(saldo(p))}</b>`:""}`;
+  const q=d.querySelector("#aptQ"); q.value = saldo(p) || ""; d.querySelector("#aptMsg").hidden=true;
+  const upd = () => { const v=Number(q.value)||0; const r=Math.max(0, saldo(p)-v); d.querySelector("#aptSaldo").textContent = r ? `o saldo de ${fmtN(r)} cx volta para ser reprogramado` : "o saldo volta para ser reprogramado"; if (!d.dataset.mexeu) d.querySelector(`[name=aptF][value=${v>=saldo(p)?"sim":"nao"}]`).checked = true; };
+  delete d.dataset.mexeu; q.oninput = upd; d.querySelectorAll("[name=aptF]").forEach(r=>r.onchange=()=>{ d.dataset.mexeu="1"; }); upd();
+  d.hidden=false; setTimeout(()=>q.focus(), 50);
+}
+async function confirmarApontar(){
+  const d=document.getElementById("apt"); const id=d.dataset.id; const p=S.pedidos.find(x=>x.id===id); if (!p) return;
+  const v=Math.round(Number(d.querySelector("#aptQ").value)); const fin=(d.querySelector("[name=aptF]:checked")||{}).value;
+  const msg=d.querySelector("#aptMsg"); const err=t=>{ msg.textContent=t; msg.hidden=false; };
+  if (!(v>0)) return err("Informe a quantidade produzida.");
+  if (!fin) return err("Escolha se a OP deve ser finalizada.");
+  const ant = S.apont[id] || {}; const parciais = [...(ant.parciais||[]), {qtd:v, em:new Date().toISOString(), fin:fin==="sim"}];
+  const tot = (Number(ant.produzido)||0) + v;
+  let dado;
+  if (fin==="sim"){
     const pend = S.pedidos.filter(x=>x.maquina===p.maquina && !(S.apont[x.id]&&S.apont[x.id].feito));
     const pos = ordenar(p.maquina, pend).findIndex(q=>q.p.id===id);
-    dado = {feito:true, em:new Date().toISOString(), maquina:p.maquina, pos: pos<0?0:pos};
-  } else dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, pos: Number.isInteger(S.apont[id].pos)?S.apont[id].pos:0};
-  if (local){ S.apont[id]=dado; saveLocal(); }
-  else if (db){ b.disabled=true;
-    try{ await db.doc("apontamentos/"+id).set(dado); S.apont[id]=dado; }
-    catch(err){ if (err && err.code==="invalid_argument"){ canWrite=false; } b.disabled=false; toast("Não foi possível gravar: "+(err&&(err.message||err.code)), true); return; } }
-  toast(era ? `OP ${opN(p)} voltou para a programação, na posição ${dado.pos+1}.` : `OP ${opN(p)} marcada como produzida.`);
-  if (!era && !document.getElementById("det").hidden) fecharOP();
+    dado = {feito:true, em:new Date().toISOString(), maquina:p.maquina, pos: pos<0?0:pos, produzido:tot, parciais};
+  } else dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais, reprogramar:true};
+  d.querySelector('[data-act="aptOk"]').disabled=true;
+  const ok = await gravarApont(id, dado); d.querySelector('[data-act="aptOk"]').disabled=false; if (!ok) return;
+  d.hidden=true; if (!document.getElementById("det").hidden) fecharOP();
+  toast(fin==="sim" ? `OP ${opN(p)} finalizada com ${fmtN(tot)} cx.` : `OP ${opN(p)}: ${fmtN(v)} cx apontadas. Saldo de ${fmtN(saldo(p))} cx volta para reprogramar.`);
+  render();
+}
+document.getElementById("apt").addEventListener("click", e => { const b=e.target.closest("button"); if (e.target.id==="apt" || (b&&b.dataset.act==="aptCancel")) { e.currentTarget.hidden=true; return; } if (b&&b.dataset.act==="aptOk") confirmarApontar(); });
+async function toggleFeito(b){
+  /* Desmarcar (em Ordens produzidas): desfaz o último apontamento; a OP volta à posição em que estava */
+  const id=b.dataset.feito; const p=S.pedidos.find(x=>x.id===id); const a=S.apont[id]; if (!p||!a) return;
+  const parciais=[...(a.parciais||[])]; const ult=parciais.pop();
+  const tot=Math.max(0,(Number(a.produzido)||0)-(ult?ult.qtd:0));
+  let dado;
+  if (a.feito) dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, pos:Number.isInteger(a.pos)?a.pos:0, produzido:tot, parciais, ...(parciais.length?{reprogramar:true}:{})};
+  else dado = tot ? {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais, reprogramar:!!a.reprogramar && parciais.length>0} : null;
+  b.disabled=true; const ok=await gravarApont(id, dado); b.disabled=false; if (!ok) return;
+  toast(a.feito ? `OP ${opN(p)} voltou para a programação, na posição ${dado.pos+1}.` : `Último apontamento da OP ${opN(p)} desfeito.`);
   render();
 }
 app.addEventListener("click", e => { if (e.target.closest("button,a,input,select")) return; const tr=e.target.closest("tr[data-op]"); if (tr) abrirOP(tr.dataset.op); });
 app.addEventListener("keydown", e => { if ((e.key==="Enter"||e.key===" ") && e.target.matches && e.target.matches("tr[data-op]")){ e.preventDefault(); abrirOP(e.target.dataset.op); } });
-document.getElementById("det").addEventListener("click", e => { if (e.target.id==="det") return fecharOP(); const b=e.target.closest("button"); if (!b) return; if (b.dataset.act==="fecharOP") fecharOP(); else if (b.dataset.feito) toggleFeito(b); else if (b.dataset.des) abrirDesenho(b.dataset.des); else if (b.dataset.lockop){ const p=S.pedidos.find(x=>x.id===b.dataset.lockop); if (p) alternarTrava(p.maquina, p.id).then(()=>abrirOP(p.id)); } });
+document.getElementById("det").addEventListener("click", e => { if (e.target.id==="det") return fecharOP(); const b=e.target.closest("button"); if (!b) return; if (b.dataset.act==="fecharOP") fecharOP(); else if (b.dataset.feito) toggleFeito(b); else if (b.dataset.prod) abrirApontar(b.dataset.prod); else if (b.dataset.des) abrirDesenho(b.dataset.des); else if (b.dataset.lockop){ const p=S.pedidos.find(x=>x.id===b.dataset.lockop); if (p) alternarTrava(p.maquina, p.id).then(()=>abrirOP(p.id)); } });
 document.getElementById("viewer").addEventListener("click", e => { const v=document.getElementById("viewer"); if (e.target.id==="viewer" || (e.target.closest("button")&&e.target.closest("button").dataset.act==="fecharDes")){ v.hidden=true; const b=document.querySelector("#det [data-des]"); if (b) b.focus(); return; } if (e.target.id==="desImg") e.target.classList.toggle("zoom"); });
 app.addEventListener("input", e => { if (e.target.id==="q"){ UI.q=e.target.value; schedule(); } });
 app.addEventListener("change", e => {
