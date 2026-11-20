@@ -15,6 +15,16 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Triapack PCP">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<script>
+/* iPhone: o Safari ignora user-scalable=no; bloqueia pinça e duplo toque */
+(function(){
+  var opt={passive:false};
+  ['gesturestart','gesturechange','gestureend'].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault();},opt);});
+  document.addEventListener('touchmove',function(e){if(e.touches.length>1||(e.scale&&e.scale!==1))e.preventDefault();},opt);
+  var ultimo=0;
+  document.addEventListener('touchend',function(e){var agora=Date.now();if(agora-ultimo<300&&!e.target.closest('input,select,textarea,button,a,label,[data-act],[data-op],[data-lock],[draggable]'))e.preventDefault();ultimo=agora;},opt);
+})();
+</script>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
