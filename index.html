@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261120181804";</script>
+<script>window.APP_VERSAO="20261120182442";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -754,6 +754,8 @@ async function importar(file){
     if (!db){
       const o={}; r.maquinas.forEach(m=>o[m.cod]=m); S.maquinas=o; S.calendario=r.calendario; S.pedidos=r.pedidos;
       const ids=new Set(r.pedidos.map(p=>p.id)); Object.keys(S.apont).forEach(k=>{ if(!ids.has(k)) delete S.apont[k]; });
+      for (const c of Object.keys(S.travas)){ S.travas[c]=Object.fromEntries(Object.entries(S.travas[c]||{}).filter(([k])=>ids.has(k))); }
+      for (const c of Object.keys(S.ordem)){ S.ordem[c]=(S.ordem[c]||[]).filter(k=>ids.has(k)); }
       const antes = new Set(S.pedidos.map(p=>p.id));
       for (const p of r.pedidos) await setDesLocal(p.id, desOf[p.id] || null);
       for (const id of antes) if (!ids.has(id)) await setDesLocal(id, null);
@@ -770,6 +772,16 @@ async function importar(file){
     say("Gravando calendário…"); await sync("calendario", r.calendario, x=>x.data);
     const oldH = {}; S.pedidos.forEach(p=>oldH[p.id]=p.desenhoH||null);
     say("Gravando pedidos…"); await sync("pedidos", r.pedidos, x=>x.id);
+    { /* OP que saiu da planilha perde trava/posição/apontamento: se voltar, entra como nova (Não programada) */
+      const ids = new Set(r.pedidos.map(p=>p.id));
+      const ords = await db.collection("ordem").get();
+      for (const d of ords.docs){ const v = d.data(); if (!v || !v.maquina) continue;
+        const tv = v.travas||{}, ord = v.ids||[];
+        const ntv = Object.fromEntries(Object.entries(tv).filter(([k])=>ids.has(k))), nord = ord.filter(k=>ids.has(k));
+        if (nord.length!==ord.length || Object.keys(ntv).length!==Object.keys(tv).length){
+          if (nord.length || Object.keys(ntv).length) await db.collection("ordem").doc(d.id).set({...v, ids:nord, travas:ntv, em:new Date().toISOString()}); else await db.collection("ordem").doc(d.id).delete(); } }
+      const aps = await db.collection("apontamentos").get(); const orf = aps.docs.filter(d=>!ids.has(d.id)).map(d=>d.id);
+      const ra = db.collection("apontamentos"); if (orf.length){ if (ra.deleteMany) await ra.deleteMany(orf); else for (const id of orf) await ra.doc(id).delete(); } }
     if (nDes || Object.values(oldH).some(Boolean)){ say("Gravando desenhos…");
       const curD = await db.collection("desenhos").get(); const has = new Set(curD.docs.map(d=>d.id));
       for (const id of has) if (!desOf[id]) await db.collection("desenhos").doc(id).delete();
