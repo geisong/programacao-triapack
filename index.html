@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
+<script>window.APP_VERSAO="20261120180145";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -1349,9 +1350,26 @@ function makeDb(sb){
     const col = (p.new && p.new.col) || (p.old && p.old.col); const cols = col ? [col] : [...subs.keys()];
     cols.forEach(c => { clearTimeout(timers[c]); timers[c] = setTimeout(()=>{ (subs.get(c)||[]).forEach(fn=>fn()); }, 400); });
   }).subscribe();
-  return { collection: colRef, doc: path => { const [c,i] = path.split("/"); return docRef(c,i); } };
+  return { collection: colRef, doc: path => { const [c,i] = path.split("/"); return docRef(c,i); }, refresh: () => subs.forEach(set => set.forEach(fn => fn())) };
 }
 let sb = null, perfil = null;
+/* Atualização automática: versão nova do site e dados do banco ao abrir/voltar para o app */
+let ultimaChecagem = 0;
+async function verificarVersao(manual, aviso){
+  const agora = Date.now(); if (!manual && agora - ultimaChecagem < 15000) return; ultimaChecagem = agora;
+  try {
+    const r = await fetch("version.json?t=" + agora, {cache:"no-store"}); const j = await r.json();
+    if (j && j.v && j.v !== window.APP_VERSAO){
+      let n = 0; try { n = Number(sessionStorage.getItem("recarga_"+j.v)||0); sessionStorage.setItem("recarga_"+j.v, n+1); } catch(_){}
+      if (n < 2){ location.replace(location.pathname + "?v=" + encodeURIComponent(j.v) + location.hash); return; }
+    }
+  } catch(_){}
+  if (db && db.refresh) db.refresh();
+  if (aviso && typeof toast==="function") toast("Dados atualizados.");
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState==="visible") verificarVersao(false); });
+window.addEventListener("pageshow", e => { if (e.persisted) verificarVersao(true); });
+window.addEventListener("online", () => verificarVersao(true));
 /* Sair: encerra a sessão neste aparelho mesmo se a internet falhar ou o Supabase demorar */
 let saindo = false;
 async function sairApp(e){
@@ -1404,9 +1422,11 @@ async function entrar(session){
   if (perfil.papel==="pendente"){ telaPendente(); return; }
   authEl().hidden = true; document.querySelector(".stage").hidden = false; document.getElementById("nav").hidden = false;
   canEdit = perfil.papel==="programador"; canWrite = true;
-  document.getElementById("who").innerHTML = `${esc(perfil.nome||perfil.email)} <span class="pill ${canEdit?"acc":""}">${canEdit?"Programador":"Produção"}</span> <button class="linkbtn" id="sair" style="color:var(--hdr-muted);padding:10px 12px;margin:-10px 0;touch-action:manipulation">Sair</button>`;
+  document.getElementById("who").innerHTML = `${esc(perfil.nome||perfil.email)} <span class="pill ${canEdit?"acc":""}">${canEdit?"Programador":"Produção"}</span> <button class="linkbtn" id="recarr" title="Atualizar dados" aria-label="Atualizar dados" style="color:var(--hdr-muted);padding:10px 8px;margin:-10px 0;touch-action:manipulation;font-size:16px">↻</button> <button class="linkbtn" id="sair" style="color:var(--hdr-muted);padding:10px 12px;margin:-10px 0;touch-action:manipulation">Sair</button>`;
   document.getElementById("sair").onclick = sairApp;
+  document.getElementById("recarr").onclick = () => verificarVersao(true, true);
   document.getElementById("navUsuarios").hidden = !canEdit;
+  verificarVersao(true);
   if (iniciado) { render(); return; } iniciado = true;
   db = makeDb(sb); dbState = "ok"; render();
   const slow = setTimeout(()=>{ if (!(S.loaded.m&&S.loaded.c&&S.loaded.p)){ dbState="slow"; render(); } }, 10000);
