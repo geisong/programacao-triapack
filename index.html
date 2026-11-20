@@ -587,13 +587,16 @@ function mapaColunas(h1, h2){
   return C;
 }
 function lerPlanilha(wb){
-  const rows = name => { const key = wb.SheetNames.find(n=>normName(n)===normName(name)); return key ? XLSX.utils.sheet_to_json(wb.Sheets[key],{header:1,raw:true,defval:null}) : null; };
+  const sk = n => normName(n).replace(/[^A-Z0-9]/g,"");
+  const acha = (name, pref) => wb.SheetNames.find(n=>normName(n)===normName(name)) || wb.SheetNames.find(n=>sk(n)===sk(name)) || (pref ? wb.SheetNames.find(n=>sk(n).startsWith(pref)) : null);
+  const rows = (name, pref) => { const key = acha(name, pref); return key ? XLSX.utils.sheet_to_json(wb.Sheets[key],{header:1,raw:true,defval:null}) : null; };
+  const abas = () => " Abas encontradas neste arquivo: " + (wb.SheetNames.join(", ") || "nenhuma") + ". Confira se escolheu a planilha certa (botão Trocar arquivo).";
   const avisos = [];
-  const mr = rows("Maquinas") || rows("Máquinas"); if (!mr) throw new Error("A aba Maquinas não foi encontrada.");
+  const mr = rows("Maquinas","MAQUIN"); if (!mr) throw new Error("A aba Maquinas não foi encontrada."+abas());
   const maquinas = [];
   mr.slice(1).forEach(r=>{ if (!txt(r[1])) return; const bm = num(r[6]) ?? (num(r[5])!=null ? num(r[5])/60 : null);
     maquinas.push({cod:txt(r[1]), nome:txt(r[0]), tipo:txt(r[2]), limpeza:num(r[3])||0, setup:num(r[4])||0, batidasMin:bm||0}); });
-  const cr = rows("Calendário") || rows("Calendario"); if (!cr) throw new Error("A aba Calendário não foi encontrada.");
+  const cr = rows("Calendario","CALEND"); if (!cr) throw new Error("A aba Calendário não foi encontrada."+abas());
   const calendario = [];
   cr.slice(1).forEach(r=>{ const data = serialToISO(r[0]); if (!data) return; const turnos=[];
     for (let i=1;i+1<r.length && i<=7;i+=2){ const a=toMin(r[i]), b=toMin(r[i+1]); if (a!=null&&b!=null&&b>a) turnos.push({ini:a,fim:b}); }
