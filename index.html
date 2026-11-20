@@ -1024,13 +1024,13 @@ function telaLogin(modo, msg){
 }
 function telaPendente(){
   const el = authEl(); el.hidden = false; document.querySelector(".stage").hidden = true; document.getElementById("nav").hidden = true;
-  el.innerHTML = `<div class="authbox"><img src="${document.querySelector(".brand img").src}" alt="Triapack" class="authlogo"><h1>Acesso aguardando liberação</h1><p class="sub">Olá, ${esc(perfil.nome||perfil.email)}. Seu cadastro foi criado. Peça ao programador para liberar seu acesso em <b>Usuários</b>.</p><button id="aSair">Sair</button></div>`;
+  el.innerHTML = `<div class="authbox"><img src="${document.querySelector(".brand img").src}" alt="Triapack" class="authlogo"><h1>Acesso aguardando liberação</h1><p class="sub">Olá, ${esc(perfil.nome||perfil.email)}. Seu cadastro foi criado. Peça ao programador para liberar seu acesso em <b>Usuários</b>.</p>${perfil.diag?`<p class="sub" style="font-size:12px;opacity:.7">Detalhe técnico: ${esc(perfil.diag)}</p>`:""}<button id="aSair">Sair</button></div>`;
   document.getElementById("aSair").onclick = () => sb.auth.signOut();
 }
 let iniciado = false;
 async function entrar(session){
   const {data, error} = await sb.from("perfis").select("*").eq("user_id", session.user.id).maybeSingle();
-  perfil = data || {nome:session.user.email, email:session.user.email, papel:"pendente"};
+  perfil = data || {nome:session.user.email, email:session.user.email, papel:"pendente", diag: error ? ("Erro ao ler o perfil: "+error.message+(error.code?" ("+error.code+")":"")) : "Perfil não encontrado no banco."};
   if (perfil.papel==="pendente"){ telaPendente(); return; }
   authEl().hidden = true; document.querySelector(".stage").hidden = false; document.getElementById("nav").hidden = false;
   canEdit = perfil.papel==="programador"; canWrite = true;
