@@ -81,3 +81,36 @@ grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on public.docs to authenticated;
 grant select, update on public.perfis to authenticated;
 grant execute on function public.papel_atual() to authenticated;
+
+-- 7) Administrador: só ele vê a tela Usuários e libera cadastros
+--    (o primeiro programador cadastrado vira o administrador)
+alter table public.perfis add column if not exists admin boolean not null default false;
+
+update public.perfis set admin = true
+where user_id = (select user_id from public.perfis where papel = 'programador' order by criado_em limit 1)
+  and not exists (select 1 from public.perfis where admin);
+
+create or replace function public.eh_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select admin from perfis where user_id = auth.uid()), false)
+$$;
+grant execute on function public.eh_admin() to authenticated;
+
+create or replace function public.novo_usuario() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare primeiro boolean := not exists (select 1 from perfis where papel = 'programador');
+begin
+  insert into perfis (user_id, nome, email, papel, admin)
+  values (new.id, coalesce(new.raw_user_meta_data->>'nome', split_part(new.email,'@',1)), new.email,
+          case when primeiro then 'programador' else 'pendente' end, primeiro);
+  return new;
+end $$;
+
+drop policy if exists "ver perfis" on public.perfis;
+create policy "ver perfis" on public.perfis for select to authenticated
+  using (user_id = auth.uid() or public.eh_admin());
+
+drop policy if exists "programador libera acesso" on public.perfis;
+drop policy if exists "admin libera acesso" on public.perfis;
+create policy "admin libera acesso" on public.perfis for update to authenticated
+  using (public.eh_admin()) with check (public.eh_admin());

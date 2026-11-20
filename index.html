@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261120181436";</script>
+<script>window.APP_VERSAO="20261120181634";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -1228,7 +1228,7 @@ function viewInicio(){
     <button class="tile dark" data-act="relatorio"><span class="ic">${ICO_PRT}</span><span><b>Imprimir programação</b><small>PDF por máquina e data</small></span></button>
     <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
     <a class="tile" href="#calendario"><span class="ic">${ICO_CAL}</span><span><b>Calendário</b><small>Dias e turnos de trabalho</small></span></a>
-    ${ROUTES.usuarios && canEdit ? `<a class="tile" href="#usuarios"><span class="ic">${ICO_USR}</span><span><b>Usuários</b><small>Liberar acesso${(()=>{const n=(usuarios||[]).filter(u=>u.papel==="pendente").length; return n?` · ${n} aguardando`:"";})()}</small></span></a>` : ""}
+    ${ROUTES.usuarios && typeof ehAdmin==="function" && ehAdmin() ? `<a class="tile" href="#usuarios"><span class="ic">${ICO_USR}</span><span><b>Usuários</b><small>Liberar acesso${(()=>{const n=(usuarios||[]).filter(u=>u.papel==="pendente").length; return n?` · ${n} aguardando`:"";})()}</small></span></a>` : ""}
   </div>`;
 }
 const ICO_OK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/></svg>`;
@@ -1376,6 +1376,8 @@ function makeDb(sb){
   return { collection: colRef, doc: path => { const [c,i] = path.split("/"); return docRef(c,i); }, refresh: () => subs.forEach(set => set.forEach(fn => fn())) };
 }
 let sb = null, perfil = null;
+/* Administrador: só ele vê Usuários. Antes do SQL do admin (coluna inexistente), vale o programador. */
+const ehAdmin = () => !!perfil && ("admin" in perfil ? perfil.admin===true : perfil.papel==="programador");
 /* Atualização automática: versão nova do site e dados do banco ao abrir/voltar para o app */
 let ultimaChecagem = 0;
 async function verificarVersao(manual, aviso){
@@ -1435,7 +1437,7 @@ function telaLogin(modo, msg){
 }
 function telaPendente(){
   const el = authEl(); el.hidden = false; document.querySelector(".stage").hidden = true; document.getElementById("nav").hidden = true;
-  el.innerHTML = `<div class="authbox"><img src="${document.querySelector(".brand img").src}" alt="Triapack" class="authlogo"><h1>Acesso aguardando liberação</h1><p class="sub">Olá, ${esc(perfil.nome||perfil.email)}. Seu cadastro foi criado. Peça ao programador para liberar seu acesso em <b>Usuários</b>.</p>${perfil.diag?`<p class="sub" style="font-size:12px;opacity:.7">Detalhe técnico: ${esc(perfil.diag)}</p>`:""}<button id="aSair">Sair</button></div>`;
+  el.innerHTML = `<div class="authbox"><img src="${document.querySelector(".brand img").src}" alt="Triapack" class="authlogo"><h1>Acesso aguardando liberação</h1><p class="sub">Olá, ${esc(perfil.nome||perfil.email)}. Seu cadastro foi criado. Peça ao administrador (Geison) para liberar seu acesso em <b>Usuários</b>.</p>${perfil.diag?`<p class="sub" style="font-size:12px;opacity:.7">Detalhe técnico: ${esc(perfil.diag)}</p>`:""}<button id="aSair">Sair</button></div>`;
   document.getElementById("aSair").onclick = sairApp;
 }
 let iniciado = false;
@@ -1448,7 +1450,7 @@ async function entrar(session){
   document.getElementById("who").innerHTML = `${esc(perfil.nome||perfil.email)} <span class="pill ${canEdit?"acc":""}">${canEdit?"Programador":"Produção"}</span> <button class="linkbtn" id="recarr" title="Atualizar dados" aria-label="Atualizar dados" style="color:var(--hdr-muted);padding:10px 8px;margin:-10px 0;touch-action:manipulation;font-size:16px">↻</button> <button class="linkbtn" id="sair" style="color:var(--hdr-muted);padding:10px 12px;margin:-10px 0;touch-action:manipulation">Sair</button>`;
   document.getElementById("sair").onclick = sairApp;
   document.getElementById("recarr").onclick = () => verificarVersao(true, true);
-  document.getElementById("navUsuarios").hidden = !canEdit;
+  document.getElementById("navUsuarios").hidden = !ehAdmin();
   verificarVersao(true);
   if (iniciado) { render(); return; } iniciado = true;
   db = makeDb(sb); dbState = "ok"; render();
@@ -1466,7 +1468,7 @@ async function entrar(session){
 let usuarios = null;
 async function carregarUsuarios(){ const {data, error} = await sb.from("perfis").select("*").order("criado_em"); usuarios = error ? [] : data; render(); }
 function viewUsuarios(){
-  if (!canEdit) return `<div class="panel empty">Somente o programador acessa esta tela.</div>`;
+  if (!ehAdmin()) return `<div class="panel empty">Somente o administrador acessa esta tela.</div>`;
   if (!usuarios){ carregarUsuarios(); return `<div class="head"><div><h1>Usuários</h1></div></div><div class="panel empty">Carregando…</div>`; }
   const pend = usuarios.filter(u=>u.papel==="pendente").length;
   return `<div class="head"><div><h1>Usuários</h1><p class="sub">Quem se cadastra entra como pendente. Libere como Produção (consulta e marca produzido) ou Programador (atualiza, arrasta e trava).</p></div><button data-act="recarregarUsuarios">Recarregar</button></div>
