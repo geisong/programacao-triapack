@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261120183049";</script>
+<script>window.APP_VERSAO="20261121103253";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -94,6 +94,8 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .seg{display:flex;gap:4px;align-self:flex-end}
 .seg .btn{padding:6px 12px;font-size:13px}
 .seg .btn[aria-pressed="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+.row-wait td{background:repeating-linear-gradient(45deg,var(--surface2),var(--surface2) 6px,transparent 6px,transparent 12px);color:var(--muted,#6b7280);font-style:italic}
+.gbar .g-espera{background:repeating-linear-gradient(45deg,#9aa3ad,#9aa3ad 3px,#c9ced4 3px,#c9ced4 6px)}
 .mqs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:16px}
 .mq{display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:10px;background:var(--surface);color:var(--fg,inherit);text-decoration:none;text-align:left;font:inherit;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.06);transition:border-color .12s,box-shadow .12s,background .12s;touch-action:manipulation;min-width:0}
 .mq:hover{border-color:var(--brand);box-shadow:0 4px 12px rgba(0,0,0,.1)}
@@ -472,7 +474,8 @@ const opN = p => (p && (p.op || p.codigo)) || "—";
 const travas = cod => S.travas[cod] || {};
 const travada = (cod, id) => Object.prototype.hasOwnProperty.call(travas(cod), id) && !reprog(id);
 function ordenar(cod, pend){
-  const auto = sequenciar(pend); const man = S.ordem[cod];
+  let auto = sequenciar(pend); const man = S.ordem[cod];
+  if (ehCol(cod)){ const ini = UI.inicio || firstDay(); const rd = new Map(auto.map(s=>{ const r = liberacao(s.p, ini); return [s.p.id, r ? r.data : ""]; })); auto = auto.map((s,i)=>[s,i]).sort((a,b)=>rd.get(a[0].p.id).localeCompare(rd.get(b[0].p.id)) || a[1]-b[1]).map(x=>x[0]); }
   let base = auto;
   if (man && man.length){
     const byId = new Map(auto.map(s=>[s.p.id,s])); base = [];
@@ -501,6 +504,14 @@ async function gravarOrdem(cod){
     try { if (a.produzido) await db.doc("apontamentos/"+p.id).set(a); else await db.doc("apontamentos/"+p.id).delete(); } catch(e){} }
 }
 async function salvarOrdem(cod, ids){
+  if (ids && ehCol(cod)){
+    const ini = UI.inicio || firstDay(); const antes = agendar(cod, ini); const old = S.ordem[cod];
+    S.ordem[cod] = ids; const dep = agendar(cod, ini);
+    const ruim = dep.seq.find(q=>q.rel && (q.waitMin||0) > ((antes.seq.find(x=>x.p.id===q.p.id)||{}).waitMin||0) + 1);
+    if (ruim){ if (old) S.ordem[cod] = old; else delete S.ordem[cod]; render();
+      const r = ruim.rel; const msg = `Não é possível programar a OP ${opN(ruim.p)} para iniciar antes do fim do primeiro processo. Na impressora ${r.maq} ela ${r.semData ? "ainda não tem data de término" : `termina em ${dBR(r.data)} às ${hm(r.h)}`}.`;
+      toast(msg, true); alertMsg(msg); return; }
+  }
   if (ids) S.ordem[cod] = ids; else delete S.ordem[cod];
   render(); await gravarOrdem(cod);
 }
@@ -532,13 +543,32 @@ function filaPanel(ag, cod){
 }
 
 /* ---------- agenda: limpeza no início do dia, pedidos, limpeza no fim ---------- */
+/* ---------- dependência impressora → coladeira ----------
+   A mesma OP (mesmo nº de OP) numa IMPRESSORA e numa COLADEIRA: a coladeira só começa depois que a impressora termina. */
+const tipoN = cod => normName((S.maquinas[cod]||{}).tipo||"");
+const ehCol = cod => /COLAD/.test(tipoN(cod));
+const ehImp = cod => /IMPRES/.test(tipoN(cod));
+const opKey = p => normName((p&&p.op)||"").replace(/\s+/g,"");
+const AGC = new Map();
+function liberacao(p, inicio){
+  if (!p || !p.op || !ehCol(p.maquina)) return null; const k = opKey(p); let rel = null;
+  for (const m of Object.values(S.maquinas)){
+    if (!ehImp(m.cod)) continue;
+    const pi = S.pedidos.find(x=>x.maquina===m.cod && opKey(x)===k); if (!pi) continue;
+    if (S.apont[pi.id] && S.apont[pi.id].feito) continue;
+    const key = m.cod+"|"+inicio; let ag = AGC.get(key); if (!ag){ ag = agendar(m.cod, inicio); AGC.set(key, ag); }
+    const f = ag.info[pi.id]; const r = f && f.fim ? {maq:m.cod, data:f.fim.data, h:f.fim.h} : {maq:m.cod, data:"9999-12-31", h:0, semData:true};
+    if (!rel || r.data > rel.data || (r.data===rel.data && r.h > rel.h)) rel = r;
+  }
+  return rel;
+}
 function agendar(cod, inicio){
   const m = S.maquinas[cod]; if (!m) return {dias:[], semData:[], seq:[]};
   const rate = Number(m.batidasMin)||0;               // caixas por minuto
   const L = Number(m.limpeza)||0, SU = Number(m.setup)||0;
   const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
   const seq = ordenar(cod, pend);
-  const queue = seq.map((s,i)=>({...s, n:i+1, rest:saldo(s.p), started:false}));
+  const queue = seq.map((s,i)=>({...s, n:i+1, rest:saldo(s.p), started:false, rel: ehCol(cod) ? liberacao(s.p, inicio) : null}));
   const dias = []; const info = {};
   const cal = S.calendario.filter(d=>d.data>=inicio && d.turnos && d.turnos.length).sort((a,b)=>a.data.localeCompare(b.data));
   let qi = 0;
@@ -567,6 +597,15 @@ function agendar(cod, inicio){
     { let r=L; for (let i=iv.length-1;i>=0 && r>0;i--){ const len=iv[i][1]-iv[i][0]; const cut=Math.min(len,r); iv[i][1]-=cut; r-=cut; if (iv[i][1]-iv[i][0]<0.0001) iv.splice(i,1);} }
     while (qi < queue.length && avail() > 0.5){
       const q = queue[qi];
+      if (!q.started && q.rel){
+        const lab = `Aguardando impressora ${q.rel.maq} · OP ${opN(q.p)}`;
+        if (d.data < q.rel.data){ if (iv.length){ q.waitMin = (q.waitMin||0) + avail(); blocks.push({t:"espera",a:iv[0][0],b:iv[iv.length-1][1],label:lab,q}); iv = []; } q.espera = true; break; }
+        if (d.data === q.rel.data && iv.length && iv[0][0] < q.rel.h - 0.01){
+          let w = 0; for (const [a,b] of iv){ if (a >= q.rel.h) break; w += Math.min(b, q.rel.h) - a; }
+          take(w).forEach(([a,b])=>blocks.push({t:"espera",a,b,label:lab,q})); q.espera = true; q.waitMin = (q.waitMin||0) + w;
+          if (avail()<=0.5) break;
+        }
+      }
       if (!q.started){
         if (SU>0){ take(SU).forEach(([a,b])=>blocks.push({t:"setup",a,b,label:"Setup",q})); }
         q.started = true;
@@ -580,7 +619,7 @@ function agendar(cod, inicio){
       parts.forEach(([a,b],i)=>blocks.push({t:"prod",a,b,q,qtd: parts.length===1? qtd : Math.round((b-a)*rate), part:i}));
       if (parts.length>1){ const lastB = blocks.filter(x=>x.q===q&&x.t==="prod"); const s = lastB.slice(0,-1).reduce((t,x)=>t+x.qtd,0); lastB[lastB.length-1].qtd = qtd - s; }
       q.rest -= qtd;
-      const inf = info[q.p.id] || (info[q.p.id] = {n:q.n, ini:{data:d.data,h:parts.length?parts[0][0]:null}, fim:null, grupo:q.grupo});
+      const inf = info[q.p.id] || (info[q.p.id] = {n:q.n, ini:{data:d.data,h:parts.length?parts[0][0]:null}, fim:null, grupo:q.grupo, rel:q.rel, espera:!!q.espera});
       if (parts.length) inf.fim = {data:d.data,h:parts[parts.length-1][1]};
       if (q.rest <= 0) qi++;
     }
@@ -869,7 +908,7 @@ async function gerarRelatorio(){
     for (const x of d.blocks){
       if (x.t==="prod"){ const p=x.q.p; const parcial = x.qtd < p.quantidade;
         body.push({k:"prod", row:[String(x.q.n)+(travada(cod,p.id)?"":" *"), hm(x.a), hm(x.b), opN(p), (p.descricao||"—")+(p.codigo?`\nCód. ${p.codigo}`:"")+(travada(cod,p.id)?"":"\nNÃO PROGRAMADO"), p.cliente||"—", p.modelo||"—", p.onda||"—", med(p), ch(p), (p.cores||[]).join(", ")||"Sem impressão", fmtN(x.qtd)+(parcial?`\nde ${fmtN(p.quantidade)}`:""), dShort(p.entrega), hm(x.b-x.a)]}); }
-      else { const lab = x.t==="inicio" ? "INÍCIO DE TURNO" : x.t==="limpeza" ? "LIMPEZA" : x.t==="break" ? "INTERVALO" : `SETUP · OP ${opN(x.q.p)}`;
+      else { const lab = x.t==="inicio" ? "INÍCIO DE TURNO" : x.t==="limpeza" ? "LIMPEZA" : x.t==="break" ? "INTERVALO" : x.t==="espera" ? x.label.toUpperCase() : `SETUP · OP ${opN(x.q.p)}`;
         body.push({k:x.t, row:["", hm(x.a), hm(x.b), {content:lab, colSpan:10}, hm(x.b-x.a)]}); }
     }
     const cxDia = d.blocks.filter(x=>x.t==="prod").reduce((s,x)=>s+x.qtd,0);
@@ -1083,13 +1122,14 @@ function viewSequencia(){
   for (const d of ag.dias){
     rows += `<tr class="day-h"><td colspan="9">${dow(d.data)}, ${dBR(d.data)}</td></tr>`;
     { const cd = S.calendario.find(x=>x.data===d.data); const ts = (cd&&cd.turnos||[]); const s0 = Math.min(...ts.map(t=>t.ini), ...d.blocks.map(x=>x.a)), s1 = Math.max(...ts.map(t=>t.fim), ...d.blocks.map(x=>x.b)); const span = Math.max(1, s1-s0);
-      const segs = d.blocks.filter(x=>x.t!=="break").map(x=>{ const l=(x.a-s0)/span*100, w=(x.b-x.a)/span*100; const lab = x.t==="prod" ? String(x.q.n) : x.t==="setup" ? "S" : x.t==="inicio" ? "IT" : "L"; const tip = x.t==="prod" ? `${x.q.n} · ${opN(x.q.p)} ${x.q.p.descricao} · ${hm(x.a)}–${hm(x.b)}` : `${x.label||"Setup"} · ${hm(x.a)}–${hm(x.b)}`; return `<span class="g-${x.t}" style="left:${l}%;width:${w}%" title="${esc(tip)}">${w>2.2?lab:""}</span>`; }).join("");
+      const segs = d.blocks.filter(x=>x.t!=="break").map(x=>{ const l=(x.a-s0)/span*100, w=(x.b-x.a)/span*100; const lab = x.t==="prod" ? String(x.q.n) : x.t==="setup" ? "S" : x.t==="inicio" ? "IT" : x.t==="espera" ? "E" : "L"; const tip = x.t==="prod" ? `${x.q.n} · ${opN(x.q.p)} ${x.q.p.descricao} · ${hm(x.a)}–${hm(x.b)}` : `${x.label||"Setup"} · ${hm(x.a)}–${hm(x.b)}`; return `<span class="g-${x.t}" style="left:${l}%;width:${w}%" title="${esc(tip)}">${w>2.2?lab:""}</span>`; }).join("");
       rows += `<tr class="gantt"><td colspan="9"><div class="gbar">${segs}</div><div class="gaxis"><span>${hm(s0)}</span><span>${hm(s1)}</span></div></td></tr>`; }
     for (const b of d.blocks){
       const t = `<td class="mono">${hm(b.a)}</td><td class="mono">${hm(b.b)}</td>`;
       if (b.t==="inicio") rows += `<tr class="row-start">${t}<td colspan="7">${b.label} · ${hm(b.b-b.a)}</td></tr>`;
       else if (b.t==="limpeza") rows += `<tr class="row-clean">${t}<td colspan="7">${b.label} · ${hm(b.b-b.a)}</td></tr>`;
       else if (b.t==="break") rows += `<tr class="row-break">${t}<td colspan="7">Intervalo</td></tr>`;
+      else if (b.t==="espera") rows += `<tr class="row-wait">${t}<td colspan="7">⏳ ${esc(b.label)} · ${hm(b.b-b.a)}</td></tr>`;
       else if (b.t==="setup") rows += `<tr class="row-setup">${t}<td class="mono">${b.q.n}</td><td colspan="6">Setup para OP ${esc(opN(b.q.p))} · ${esc(b.q.p.descricao)}</td></tr>`;
       else { const p=b.q.p; const f=ag.info[p.id]; const late = p.entrega && f && f.fim && f.fim.data>p.entrega;
         rows += `<tr>${t}<td class="mono">${b.q.n}</td><td><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:0">${esc(p.cliente)}</div><div style="margin-top:4px">${stPill(UI.maq,p.id)}</div></td><td>${chips(p.cores)}</td><td>${esc(p.onda)}</td><td class="num">${fmtN(b.qtd)}${b.qtd<p.quantidade?` <span class="sub">de ${fmtN(p.quantidade)}</span>`:""}</td><td class="mono ${late?"late":""}">${dShort(p.entrega)}${late?" ⚠":""}</td><td class="num mono">${hm(b.b-b.a)}</td></tr>`; }
@@ -1324,6 +1364,7 @@ function viewProduzidas(){
 const ROUTES = {inicio:viewInicio, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
 function route(){ const h = location.hash.replace("#","").split("/")[0]; return ROUTES[h] ? h : "inicio"; }
 function render(){
+  AGC.clear();
   const r = route();
   document.querySelectorAll("#nav a").forEach(a=>a.setAttribute("aria-current", a.getAttribute("href")==="#"+r ? "page" : "false"));
   const f = document.activeElement && document.activeElement.id; const pos = f==="q" ? document.activeElement.selectionStart : null;
