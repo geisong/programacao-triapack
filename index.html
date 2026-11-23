@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261123181229";</script>
+<script>window.APP_VERSAO="20261123181406";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -86,14 +86,15 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .gt-nav input{width:auto}
 .gt-cap{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:12px 14px;border-bottom:1px solid var(--line)}
 .gt-sc{overflow-x:auto}
-.gt-in{min-width:1100px}
+.gt-in{width:max-content}
 .gt-row{display:flex;border-bottom:1px solid var(--line)}
 .gt-m{flex:none;width:120px;position:sticky;left:0;z-index:3;background:var(--surface);padding:8px 10px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
 .gt-m b{font-size:13px}.gt-m small{font-size:10px;color:var(--muted,#6b7280);text-transform:capitalize}
-.gt-t{position:relative;flex:1;height:46px;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/24 - 1px),var(--line) calc(100%/24 - 1px),var(--line) calc(100%/24))}
-.gt-ax .gt-t{height:22px;background:none}
-.gt-ax .gt-t span{position:absolute;top:4px;transform:translateX(-50%);font-size:10px;color:var(--muted,#6b7280)}
-.gt-ax .gt-t span:first-child{transform:none}.gt-ax .gt-t span:last-child{transform:translateX(-100%)}
+.gt-t{position:relative;flex:none;height:46px;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(var(--ph) - 1px),var(--line) calc(var(--ph) - 1px),var(--line) var(--ph))}
+.gt-dl{position:absolute;top:0;bottom:0;width:2px;background:var(--fg);opacity:.35;z-index:1}
+.gt-ax .gt-t{height:38px;background:none}
+.gt-dn{position:absolute;top:3px;padding-left:4px;font-size:12px;font-weight:700;white-space:nowrap}
+.gt-hn{position:absolute;top:21px;padding-left:3px;font-size:10px;color:var(--muted,#6b7280)}
 .gt-off{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(214,69,65,.28) 0,rgba(214,69,65,.28) 4px,rgba(214,69,65,.06) 4px,rgba(214,69,65,.06) 9px)}
 .gt-b{position:absolute;top:3px;bottom:3px;border:0;padding:0 4px;border-radius:5px;font:inherit;font-size:10px;font-weight:700;color:#fff;background:var(--c);cursor:pointer;overflow:hidden;white-space:nowrap;text-align:left;min-width:3px;touch-action:manipulation}
 .gt-b span{display:block;overflow:hidden;text-overflow:ellipsis}
@@ -107,7 +108,7 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .gt-oph{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
 .gt-act{display:flex;gap:6px;flex-wrap:wrap}
 .btn.sm{padding:4px 8px;font-size:12px}
-@media (max-width:640px){.gt-m{width:84px;padding:6px}.gt-in{min-width:1000px}}
+@media (max-width:640px){.gt-m{width:84px;padding:6px}}
 .db-chart{display:flex;align-items:flex-end;gap:6px;height:220px;overflow-x:auto;padding:4px 2px 0}
 .db-col{flex:1 0 34px;max-width:64px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
 .db-track{position:relative;flex:1;width:100%;margin-top:18px}
@@ -1331,26 +1332,42 @@ function viewGantt(){
   const ordT = cod => ehImp(cod) ? 0 : ehCol(cod) ? 1 : 2;
   const ms = maqList().sort((a,b)=>ordT(a.cod)-ordT(b.cod) || a.cod.localeCompare(b.cod));
   if (!ms.length) return `<div class="head"><div><h1>Gantt</h1><p class="sub">${impLine()}</p></div></div>${emptyState()}`;
-  const ini = UI.inicio || firstDay(); const dia = UI.gDia || ini; const sel = UI.gOp || "";
-  const pct = m => (m/1440*100).toFixed(3)+"%";
-  const horas = Array.from({length:25},(_,h)=>h);
-  const cal = S.calendario.find(c=>c.data===dia); const turnos = (cal && cal.turnos || []).map(t=>[t.ini,t.fim]).filter(t=>t[1]>t[0]).sort((a,b)=>a[0]-b[0]);
-  const fora = []; { let c = 0; for (const [a,b] of turnos){ if (a>c) fora.push([c,a]); c = Math.max(c,b); } if (c<1440) fora.push([c,1440]); }
-  const hatch = fora.map(([a,b])=>`<span class="gt-off" style="left:${pct(a)};width:${pct(b-a)}"></span>`).join("");
+  const ini = UI.inicio || firstDay(); const sel = UI.gOp || ""; const NDIAS = 20, PH = 44;
+  const dias = Array.from({length:NDIAS},(_,i)=>addDia(ini,i));
+  const ags = new Map(ms.map(m=>[m.cod, agendar(m.cod, ini)]));
+  // a linha do tempo começa na hora em que começa a primeira OP
+  let t0 = 1440; for (const ag of ags.values()){ const d = ag.dias.find(x=>x.data===ini); if (d) for (const x of d.blocks) if (x.t!=="break") t0 = Math.min(t0, x.a); }
+  if (t0>=1440){ const c = S.calendario.find(c=>c.data===ini); t0 = c && c.turnos && c.turnos.length ? Math.min(...c.turnos.map(t=>t.ini)) : 0; }
+  t0 = Math.floor(t0/60)*60;
+  const xMin = (data, h) => dias.indexOf(data)*1440 + h - t0;
+  const px = m => (m/60*PH).toFixed(1)+"px";
+  const total = NDIAS*1440 - t0;
+  const offs = []; const marcas = []; const rot = [];
+  dias.forEach((k,i)=>{
+    const cal = S.calendario.find(c=>c.data===k); const turnos = (cal && cal.turnos || []).map(t=>[t.ini,t.fim]).filter(t=>t[1]>t[0]).sort((a,b)=>a[0]-b[0]);
+    let c = 0; for (const [a,b] of turnos){ if (a>c) offs.push([i*1440+c, i*1440+a]); c = Math.max(c,b); } if (c<1440) offs.push([i*1440+c, i*1440+1440]);
+    const x0 = i*1440 - t0; if (x0 >= 0) marcas.push(`<span class="gt-dl" style="left:${px(x0)}"></span>`);
+    rot.push(`<span class="gt-dn" style="left:${px(Math.max(0,x0))}">${dow(k).slice(0,3)} ${dBR(k).slice(0,5)}${turnos.length?"":" · sem calendário"}</span>`);
+    for (let h=0; h<24; h+=2){ const x = i*1440 + h*60 - t0; if (x>=0) rot.push(`<span class="gt-hn" style="left:${px(x)}">${pad(h)}h</span>`); }
+  });
+  const hatch = offs.map(([a,b])=>[Math.max(a-t0,0), b-t0]).filter(([a,b])=>b>a).map(([a,b])=>`<span class="gt-off" style="left:${px(a)};width:${px(b-a)}"></span>`).join("") + marcas.join("");
+  let primeiraOP = null;
   const linhas = ms.map(m=>{
-    const ag = agendar(m.cod, ini); const d = ag.dias.find(x=>x.data===dia);
-    const bars = (d ? d.blocks : []).filter(x=>x.t!=="break").map(x=>{
-      const l = pct(x.a), w = pct(x.b-x.a);
+    const ag = ags.get(m.cod);
+    const bars = ag.dias.filter(d=>dias.includes(d.data)).map(d=>d.blocks.filter(x=>x.t!=="break").map(x=>{
+      const a = xMin(d.data, x.a), w = x.b-x.a; if (a+w < 0) return "";
+      const l = px(Math.max(0,a)), wd = px(w + Math.min(0,a));
       if (x.t==="prod" || x.t==="setup"){
-        const p = x.q.p, k = opKey(p) || p.id; const so = sel && k!==sel; if (so) return "";
-        const tip = `${x.t==="setup"?"Setup · ":""}OP ${opN(p)} · ${p.descricao||""} · ${hm(x.a)}–${hm(x.b)}${x.t==="prod"?` · ${fmtN(x.qtd)} cx`:""}`;
+        const p = x.q.p, k = opKey(p) || p.id; if (sel && k!==sel) return "";
+        if (x.t==="prod" && (primeiraOP==null || a < primeiraOP)) primeiraOP = a;
+        const tip = `${x.t==="setup"?"Setup · ":""}OP ${opN(p)} · ${p.descricao||""} · ${dShort(d.data)} ${hm(x.a)}–${hm(x.b)}${x.t==="prod"?` · ${fmtN(x.qtd)} cx`:""}`;
         const drag = canEdit && x.t==="prod" && !travada(m.cod, p.id) ? `draggable="true"` : "";
-        return `<button class="gt-b ${x.t==="setup"?"su":"pr"}${sel===k?" on":""}${travada(m.cod,p.id)?" lk":""}" style="left:${l};width:${w};--c:${corOP(k)}" data-gop="${esc(k)}" data-gid="${esc(p.id)}" data-gm="${esc(m.cod)}" ${drag} title="${esc(tip)}"><span>${x.t==="prod"?esc(opN(p)):""}</span></button>`;
+        return `<button class="gt-b ${x.t==="setup"?"su":"pr"}${sel===k?" on":""}${travada(m.cod,p.id)?" lk":""}" style="left:${l};width:${wd};--c:${corOP(k)}" data-gop="${esc(k)}" data-gid="${esc(p.id)}" data-gm="${esc(m.cod)}" ${drag} title="${esc(tip)}"><span>${x.t==="prod"?esc(opN(p)):""}</span></button>`;
       }
       if (sel && !(x.t==="espera" && x.q && (opKey(x.q.p)||x.q.p.id)===sel)) return "";
-      return `<span class="gt-${x.t}" style="left:${l};width:${w}" title="${esc((x.label||x.t)+" · "+hm(x.a)+"–"+hm(x.b))}"></span>`;
-    }).join("");
-    return `<div class="gt-row"><div class="gt-m" title="${esc(m.nome||"")}"><b>${esc(m.cod)}</b><small>${esc((m.tipo||"").toLowerCase())}</small></div><div class="gt-t" data-gm="${esc(m.cod)}">${hatch}${bars}</div></div>`;
+      return `<span class="gt-${x.t}" style="left:${l};width:${wd}" title="${esc((x.label||x.t)+" · "+dShort(d.data)+" "+hm(x.a)+"–"+hm(x.b))}"></span>`;
+    }).join("")).join("");
+    return `<div class="gt-row"><div class="gt-m" title="${esc(m.nome||"")}"><b>${esc(m.cod)}</b><small>${esc((m.tipo||"").toLowerCase())}</small></div><div class="gt-t" style="width:${px(total)}">${hatch}${bars}</div></div>`;
   }).join("");
   let painel = "";
   if (sel){
@@ -1373,18 +1390,16 @@ function viewGantt(){
       </div>` : ""}
       <div class="scroll" style="margin-top:12px"><table><thead><tr><th>Recurso</th><th>Tipo</th><th class="num">Seq</th><th>Início</th><th>Fim</th><th>Situação</th>${canEdit?`<th>Sequência</th>`:""}</tr></thead><tbody>
       ${rot.map(r=>`<tr><td><b>${esc(r.m.cod)}</b></td><td>${esc((r.m.tipo||"").toLowerCase())}</td><td class="num mono">${r.n||"—"}</td>
-        <td class="mono">${r.ini?`<button class="linkbtn" data-gdia="${r.ini.data}">${quando(r.ini)}</button>`:(r.feito?"Produzido":"Sem data")}</td><td class="mono">${r.fim?quando(r.fim):"—"}</td>
+        <td class="mono">${r.ini?`<button class="linkbtn" data-gx="${xMin(r.ini.data, r.ini.h)}">${quando(r.ini)}</button>`:(r.feito?"Produzido":"Sem data")}</td><td class="mono">${r.fim?quando(r.fim):"—"}</td>
         <td>${r.feito?`<span class="pill ok">Produzido</span>`:stPill(r.m.cod,r.p.id)}${r.espera?` <span class="pill np">⏳ aguarda impressora</span>`:""}</td>
         ${canEdit?`<td>${r.feito||travada(r.m.cod,r.p.id)?`<span class="sub" style="margin:0">${r.feito?"—":"travada"}</span>`:`<button class="btn sm" data-gmv="-1" data-gm="${esc(r.m.cod)}" data-gid="${esc(r.p.id)}" title="Antecipar na fila">▲ Antes</button> <button class="btn sm" data-gmv="1" data-gm="${esc(r.m.cod)}" data-gid="${esc(r.p.id)}" title="Adiar na fila">▼ Depois</button>`}</td>`:""}</tr>`).join("")}
       </tbody></table></div></section>`;
   }
-  return `<div class="head"><div><h1>Gantt</h1><p class="sub">Todas as máquinas, 24 horas. ${canEdit?"Arraste uma OP sobre outra da mesma máquina para mudar a sequência. ":""}Toque na OP para ver o roteiro dela.</p></div>
-    <div class="gt-nav"><button class="btn" data-gdia="${addDia(dia,-1)}" aria-label="Dia anterior">‹</button><input type="date" id="gDia" value="${dia}"><button class="btn" data-gdia="${addDia(dia,1)}" aria-label="Próximo dia">›</button></div></div>
+  return `<div class="head"><div><h1>Gantt</h1><p class="sub">Todas as máquinas, próximos ${NDIAS} dias. Role para o lado para ver os outros dias. ${canEdit?"Arraste uma OP sobre outra da mesma máquina para mudar a sequência. ":""}Toque na OP para ver o roteiro dela.</p></div></div>
   ${painel}
   <section class="panel gt" style="padding:0">
-    <div class="gt-cap"><b>${dow(dia)}, ${dBR(dia)}</b>${turnos.length?`<span class="sub" style="margin:0">Turnos: ${turnos.map(t=>hm(t[0])+"–"+hm(t[1])).join(" · ")}</span>`:`<span class="sub" style="margin:0;color:var(--bad)">Sem calendário neste dia</span>`}${dia<ini?`<span class="sub" style="margin:0">A programação começa em ${dBR(ini)}</span>`:""}</div>
-    <div class="gt-sc" data-x="${turnos.length ? Math.max(0,(turnos[0][0]-30)/1440) : 0}"><div class="gt-in">
-      <div class="gt-row gt-ax"><div class="gt-m"></div><div class="gt-t">${horas.map(h=>`<span style="left:${pct(h*60)}">${pad(h)}</span>`).join("")}</div></div>
+    <div class="gt-sc" data-x0="${sel && primeiraOP!=null ? Math.max(0, primeiraOP-30)/60*PH : 0}"><div class="gt-in" style="--ph:${PH}px">
+      <div class="gt-row gt-ax"><div class="gt-m"></div><div class="gt-t" style="width:${px(total)}">${rot.join("")}</div></div>
       ${linhas}
     </div></div>
     <div class="legend" style="padding:10px 14px"><span><i class="gt-lg off"></i>Sem calendário</span><span><i style="background:#111"></i>Setup, limpeza e início de turno</span><span><i class="gt-lg wait"></i>Aguardando impressora</span><span>Cada OP tem uma cor, igual em todas as máquinas do roteiro.</span></div>
@@ -1485,7 +1500,7 @@ function render(){
   const naMaq = /^#(sequencia|indicadores)\/./.test(location.hash); const volta = "#"+location.hash.slice(1).split("/")[0];
   app.innerHTML = (r!=="inicio" ? `<div class="voltar"><a class="btn-inicio" href="#inicio">${ICO_HOME}Início</a>${naMaq?`<a class="btn-inicio alt" href="${volta}">${ICO_HOME}Máquinas</a>`:""}</div>` : "") + ROUTES[r]();
   { const sc = app.querySelector(".gt-sc"); if (sc){ const inn = sc.querySelector(".gt-in"); const cols = inn.scrollWidth - 120;
-      sc.scrollLeft = UI.gScroll!=null ? UI.gScroll : Math.max(0, Number(sc.dataset.x)*cols);
+      sc.scrollLeft = UI.gScroll!=null ? UI.gScroll : Number(sc.dataset.x0)||0;
       sc.addEventListener("scroll", () => { UI.gScroll = sc.scrollLeft; }, {passive:true}); } }
   if (f){ const el = document.getElementById(f); if (el){ el.focus(); if (pos!=null && el.setSelectionRange) el.setSelectionRange(pos,pos); } }
 }
@@ -1494,8 +1509,8 @@ let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render
 /* ---------- eventos ---------- */
 app.addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b) return;
-  if (b.dataset.gop){ UI.gOp = (UI.gOp===b.dataset.gop ? "" : b.dataset.gop); render(); return; }
-  if (b.dataset.gdia){ UI.gDia = b.dataset.gdia; UI.gScroll = null; render(); return; }
+  if (b.dataset.gop){ UI.gOp = (UI.gOp===b.dataset.gop ? "" : b.dataset.gop); UI.gScroll = null; render(); return; }
+  if (b.dataset.gx){ UI.gScroll = Math.max(0, Number(b.dataset.gx)-30)/60*44; render(); return; }
   if (b.dataset.gmv){ moverNaFila(b.dataset.gm, b.dataset.gid, null, Number(b.dataset.gmv)); return; }
   if (b.dataset.act==="gDet"){ UI.gDet = !UI.gDet; render(); return; }
   if (b.dataset.act==="gTodas"){ UI.gOp = ""; UI.gDet = false; render(); return; }
@@ -1572,7 +1587,6 @@ app.addEventListener("input", e => { if (e.target.id==="q"){ UI.q=e.target.value
 app.addEventListener("change", e => {
   const t=e.target;
   if (t.id==="ini"){ UI.inicio=t.value||null; render(); }
-  if (t.id==="gDia" && t.value){ UI.gDia=t.value; UI.gScroll=null; render(); }
   if (t.id==="cMaq"){ UI.cMaq=t.value; saveUI(); render(); }
   if (t.id==="cDia"){ UI.cDia=t.value; render(); }
   if (t.id==="showDone"){ UI.showDone=t.checked; render(); }
