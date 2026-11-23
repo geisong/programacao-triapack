@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261123181406";</script>
+<script>window.APP_VERSAO="20261123183314";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -102,7 +102,7 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .gt-b.lk{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
 .gt-b.on{outline:2px solid var(--fg);outline-offset:1px;z-index:2}
 .gt-b.drop{outline:2px dashed var(--brand);outline-offset:2px}
-.gt-inicio,.gt-limpeza{position:absolute;top:3px;bottom:3px;background:#111;border-radius:4px}
+.gt-inicio,.gt-limpeza{position:absolute;top:3px;bottom:3px;background:#1971c2;border-radius:4px}
 .gt-espera{position:absolute;top:3px;bottom:3px;border-radius:4px;background:repeating-linear-gradient(45deg,#9aa3ad,#9aa3ad 3px,#c9ced4 3px,#c9ced4 6px)}
 .gt-lg{display:inline-block}.gt-lg.off{background:repeating-linear-gradient(45deg,rgba(214,69,65,.5) 0,rgba(214,69,65,.5) 3px,transparent 3px,transparent 6px)!important}.gt-lg.wait{background:repeating-linear-gradient(45deg,#9aa3ad,#9aa3ad 3px,#c9ced4 3px,#c9ced4 6px)!important}
 .gt-oph{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
@@ -1315,7 +1315,7 @@ const ICO_USR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICO_HOME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
 /* ---------- Gantt: todas as máquinas × 24 h ---------- */
 const ICO_GANTT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><rect x="6" y="6" width="7" height="3" rx="1"/><rect x="10" y="11" width="8" height="3" rx="1"/><rect x="8" y="16" width="6" height="3" rx="1"/></svg>`;
-const G_CORES = ["#e8590c","#1c7ed6","#2f9e44","#ae3ec9","#f08c00","#0c8599","#d6336c","#5c940d","#4263eb","#a61e4d","#087f5b","#862e9c"];
+const G_CORES = ["#e8590c","#2f9e44","#ae3ec9","#f08c00","#d6336c","#5c940d","#a61e4d","#087f5b","#862e9c","#c92a2a","#b08900","#7048e8"];
 const corOP = k => { let h = 0; for (const c of k) h = (h*31 + c.charCodeAt(0)) >>> 0; return G_CORES[h % G_CORES.length]; };
 const addDia = (iso, n) => { const d = dObj(iso); d.setDate(d.getDate()+n); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
 function roteiroOP(key, ini){
@@ -1402,7 +1402,7 @@ function viewGantt(){
       <div class="gt-row gt-ax"><div class="gt-m"></div><div class="gt-t" style="width:${px(total)}">${rot.join("")}</div></div>
       ${linhas}
     </div></div>
-    <div class="legend" style="padding:10px 14px"><span><i class="gt-lg off"></i>Sem calendário</span><span><i style="background:#111"></i>Setup, limpeza e início de turno</span><span><i class="gt-lg wait"></i>Aguardando impressora</span><span>Cada OP tem uma cor, igual em todas as máquinas do roteiro.</span></div>
+    <div class="legend" style="padding:10px 14px"><span><i class="gt-lg off"></i>Sem calendário</span><span><i style="background:#111"></i>Setup</span><span><i style="background:#1971c2"></i>Limpeza (início e fim de turno)</span><span><i class="gt-lg wait"></i>Aguardando impressora</span><span>Cada OP tem uma cor, igual em todas as máquinas do roteiro.</span></div>
   </section>`;
 }
 function moverNaFila(cod, id, alvoId, dir){
