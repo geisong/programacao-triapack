@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261123100900";</script>
+<script>window.APP_VERSAO="20261123180647";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -82,6 +82,32 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .btn-inicio:hover{filter:brightness(1.08)}
 .voltar{display:flex;gap:10px;flex-wrap:wrap;position:relative;z-index:1}
 .btn-inicio.alt{background:rgba(255,255,255,.12);color:#fff;box-shadow:none;border:1px solid rgba(255,255,255,.25)}
+.gt-nav{display:flex;gap:6px;align-items:center;align-self:flex-end}
+.gt-nav input{width:auto}
+.gt-cap{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;padding:12px 14px;border-bottom:1px solid var(--line)}
+.gt-sc{overflow-x:auto}
+.gt-in{min-width:1100px}
+.gt-row{display:flex;border-bottom:1px solid var(--line)}
+.gt-m{flex:none;width:120px;position:sticky;left:0;z-index:3;background:var(--surface);padding:8px 10px;border-right:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}
+.gt-m b{font-size:13px}.gt-m small{font-size:10px;color:var(--muted,#6b7280);text-transform:capitalize}
+.gt-t{position:relative;flex:1;height:46px;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(100%/24 - 1px),var(--line) calc(100%/24 - 1px),var(--line) calc(100%/24))}
+.gt-ax .gt-t{height:22px;background:none}
+.gt-ax .gt-t span{position:absolute;top:4px;transform:translateX(-50%);font-size:10px;color:var(--muted,#6b7280)}
+.gt-ax .gt-t span:first-child{transform:none}.gt-ax .gt-t span:last-child{transform:translateX(-100%)}
+.gt-off{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(45deg,rgba(214,69,65,.28) 0,rgba(214,69,65,.28) 4px,rgba(214,69,65,.06) 4px,rgba(214,69,65,.06) 9px)}
+.gt-b{position:absolute;top:7px;bottom:7px;border:0;padding:0 4px;border-radius:5px;font:inherit;font-size:10px;font-weight:700;color:#fff;background:var(--c);cursor:pointer;overflow:hidden;white-space:nowrap;text-align:left;min-width:3px;touch-action:manipulation}
+.gt-b span{display:block;overflow:hidden;text-overflow:ellipsis}
+.gt-b.su{background:color-mix(in srgb,var(--c) 45%,var(--setup));opacity:.8;top:13px;bottom:13px}
+.gt-b.lk{box-shadow:inset 0 0 0 2px rgba(255,255,255,.55)}
+.gt-b.on{outline:2px solid var(--fg);outline-offset:1px;z-index:2}
+.gt-b.drop{outline:2px dashed var(--brand);outline-offset:2px}
+.gt-inicio,.gt-limpeza{position:absolute;top:15px;bottom:15px;background:var(--clean);border-radius:3px;opacity:.85}
+.gt-espera{position:absolute;top:10px;bottom:10px;border-radius:4px;background:repeating-linear-gradient(45deg,#9aa3ad,#9aa3ad 3px,#c9ced4 3px,#c9ced4 6px)}
+.gt-lg{display:inline-block}.gt-lg.off{background:repeating-linear-gradient(45deg,rgba(214,69,65,.5) 0,rgba(214,69,65,.5) 3px,transparent 3px,transparent 6px)!important}.gt-lg.wait{background:repeating-linear-gradient(45deg,#9aa3ad,#9aa3ad 3px,#c9ced4 3px,#c9ced4 6px)!important}
+.gt-oph{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.gt-act{display:flex;gap:6px;flex-wrap:wrap}
+.btn.sm{padding:4px 8px;font-size:12px}
+@media (max-width:640px){.gt-m{width:84px;padding:6px}.gt-in{min-width:1000px}}
 .db-chart{display:flex;align-items:flex-end;gap:6px;height:220px;overflow-x:auto;padding:4px 2px 0}
 .db-col{flex:1 0 34px;max-width:64px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
 .db-track{position:relative;flex:1;width:100%;margin-top:18px}
@@ -402,7 +428,7 @@ const saveLocal = () => { try { localStorage.setItem(LKEY, JSON.stringify({maqui
 const loadLocal = () => { try { const d = JSON.parse(localStorage.getItem(LKEY)||"null"); if (d) Object.assign(S, d); } catch(e){} };
 function goLocal(){ local = true; db = null; canEdit = true; canWrite = true; dbState = "local"; loadLocal();
   document.getElementById("who").innerHTML = `<span class="pill">Neste computador</span>`; render(); }
-const UI = { maq:null, inicio:null, q:"", cMaq:"", cDia:"", cMes:"", showDone:false, dPer:15 };
+const UI = { maq:null, inicio:null, q:"", cMaq:"", cDia:"", cMes:"", showDone:false, dPer:15, gDia:"", gOp:"", gDet:false };
 try { const s = JSON.parse(localStorage.getItem("triapack-ui")||"{}"); Object.assign(UI, s, {q:""}); } catch(e){}
 const saveUI = () => { try { localStorage.setItem("triapack-ui", JSON.stringify({maq:UI.maq,cMaq:UI.cMaq})); } catch(e){} };
 
@@ -1286,6 +1312,92 @@ const ICO_MAQ = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const ICO_CAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
 const ICO_USR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>`;
 const ICO_HOME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
+/* ---------- Gantt: todas as máquinas × 24 h ---------- */
+const ICO_GANTT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4v16h18"/><rect x="6" y="6" width="7" height="3" rx="1"/><rect x="10" y="11" width="8" height="3" rx="1"/><rect x="8" y="16" width="6" height="3" rx="1"/></svg>`;
+const G_CORES = ["#e8590c","#1c7ed6","#2f9e44","#ae3ec9","#f08c00","#0c8599","#d6336c","#5c940d","#4263eb","#a61e4d","#087f5b","#862e9c"];
+const corOP = k => { let h = 0; for (const c of k) h = (h*31 + c.charCodeAt(0)) >>> 0; return G_CORES[h % G_CORES.length]; };
+const addDia = (iso, n) => { const d = dObj(iso); d.setDate(d.getDate()+n); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
+function roteiroOP(key, ini){
+  const out = [];
+  for (const m of maqList()){
+    const p = S.pedidos.find(x=>x.maquina===m.cod && opKey(x)===key); if (!p) continue;
+    const feito = !!(S.apont[p.id] && S.apont[p.id].feito);
+    const ag = feito ? null : agendar(m.cod, ini); const f = ag && ag.info[p.id];
+    out.push({m, p, feito, n: f ? f.n : null, ini: f && f.ini, fim: f && f.fim, espera: f && f.espera});
+  }
+  return out.sort((a,b)=> (a.ini ? a.ini.data+pad(Math.round(a.ini.h)).padStart(5,"0") : "z") .localeCompare(b.ini ? b.ini.data+pad(Math.round(b.ini.h)).padStart(5,"0") : "z"));
+}
+function viewGantt(){
+  const ms = maqList();
+  if (!ms.length) return `<div class="head"><div><h1>Gantt</h1><p class="sub">${impLine()}</p></div></div>${emptyState()}`;
+  const ini = UI.inicio || firstDay(); const dia = UI.gDia || ini; const sel = UI.gOp || "";
+  const pct = m => (m/1440*100).toFixed(3)+"%";
+  const horas = Array.from({length:25},(_,h)=>h);
+  const cal = S.calendario.find(c=>c.data===dia); const turnos = (cal && cal.turnos || []).map(t=>[t.ini,t.fim]).filter(t=>t[1]>t[0]).sort((a,b)=>a[0]-b[0]);
+  const fora = []; { let c = 0; for (const [a,b] of turnos){ if (a>c) fora.push([c,a]); c = Math.max(c,b); } if (c<1440) fora.push([c,1440]); }
+  const hatch = fora.map(([a,b])=>`<span class="gt-off" style="left:${pct(a)};width:${pct(b-a)}"></span>`).join("");
+  const linhas = ms.map(m=>{
+    const ag = agendar(m.cod, ini); const d = ag.dias.find(x=>x.data===dia);
+    const bars = (d ? d.blocks : []).filter(x=>x.t!=="break").map(x=>{
+      const l = pct(x.a), w = pct(x.b-x.a);
+      if (x.t==="prod" || x.t==="setup"){
+        const p = x.q.p, k = opKey(p) || p.id; const so = sel && k!==sel; if (so) return "";
+        const tip = `${x.t==="setup"?"Setup · ":""}OP ${opN(p)} · ${p.descricao||""} · ${hm(x.a)}–${hm(x.b)}${x.t==="prod"?` · ${fmtN(x.qtd)} cx`:""}`;
+        const drag = canEdit && x.t==="prod" && !travada(m.cod, p.id) ? `draggable="true"` : "";
+        return `<button class="gt-b ${x.t==="setup"?"su":"pr"}${sel===k?" on":""}${travada(m.cod,p.id)?" lk":""}" style="left:${l};width:${w};--c:${corOP(k)}" data-gop="${esc(k)}" data-gid="${esc(p.id)}" data-gm="${esc(m.cod)}" ${drag} title="${esc(tip)}"><span>${x.t==="prod"?esc(opN(p)):""}</span></button>`;
+      }
+      if (sel && !(x.t==="espera" && x.q && (opKey(x.q.p)||x.q.p.id)===sel)) return "";
+      return `<span class="gt-${x.t}" style="left:${l};width:${w}" title="${esc((x.label||x.t)+" · "+hm(x.a)+"–"+hm(x.b))}"></span>`;
+    }).join("");
+    return `<div class="gt-row"><div class="gt-m" title="${esc(m.nome||"")}"><b>${esc(m.cod)}</b><small>${esc((m.tipo||"").toLowerCase())}</small></div><div class="gt-t" data-gm="${esc(m.cod)}">${hatch}${bars}</div></div>`;
+  }).join("");
+  let painel = "";
+  if (sel){
+    const rot = roteiroOP(sel, ini); const p0 = rot.length ? rot[0].p : null;
+    const comData = rot.filter(r=>r.ini && r.fim);
+    const prim = comData.length ? comData.reduce((a,r)=> (r.ini.data+String(r.ini.h).padStart(6,"0")) < (a.ini.data+String(a.ini.h).padStart(6,"0")) ? r : a) : null;
+    const ult = comData.length ? comData.reduce((a,r)=> (r.fim.data+String(r.fim.h).padStart(6,"0")) > (a.fim.data+String(a.fim.h).padStart(6,"0")) ? r : a) : null;
+    const quando = x => x ? `${dow(x.data).slice(0,3)} ${dBR(x.data)} ${hm(x.h)}` : "—";
+    const durMin = prim && ult ? (dObj(ult.fim.data) - dObj(prim.ini.data))/60000 + ult.fim.h - prim.ini.h : 0;
+    const dur = durMin ? `${Math.floor(durMin/1440) ? Math.floor(durMin/1440)+"d " : ""}${hm(durMin%1440)}` : "—";
+    const late = p0 && p0.entrega && ult && ult.fim.data > p0.entrega;
+    painel = `<section class="panel gt-op">
+      <div class="gt-oph"><div><div class="sub" style="margin:0">Roteiro da OP</div><h2 style="margin:2px 0 0">OP ${esc(opN(p0))}</h2><div class="sub" style="margin:2px 0 0">${esc(p0&&p0.descricao||"")} · ${esc(p0&&p0.cliente||"")}</div></div>
+        <div class="gt-act"><button class="btn" data-act="gDet" aria-expanded="${!!UI.gDet}">${UI.gDet?"Ocultar detalhes":"Detalhes"}</button><button class="btn" data-act="gTodas">Mostrar todas as OPs</button></div></div>
+      ${UI.gDet ? `<div class="kpis" style="margin:12px 0 0">
+        <div class="kpi"><span>Início do primeiro recurso</span><b style="font-size:18px">${quando(prim&&prim.ini)}</b><div class="sub" style="margin:0">${prim?esc(prim.m.cod):""}</div></div>
+        <div class="kpi"><span>Fim do último recurso</span><b style="font-size:18px" class="${late?"late":""}">${quando(ult&&ult.fim)}</b><div class="sub" style="margin:0">${ult?esc(ult.m.cod):""}</div></div>
+        <div class="kpi"><span>Tempo total do roteiro</span><b style="font-size:18px">${dur}</b><div class="sub" style="margin:0">do 1º início ao último fim</div></div>
+        <div class="kpi"><span>Entrega</span><b style="font-size:18px" class="${late?"late":""}">${p0&&p0.entrega?dBR(p0.entrega):"—"}</b><div class="sub" style="margin:0">${late?"Em atraso":p0&&p0.entrega?"No prazo":""}</div></div>
+      </div>` : ""}
+      <div class="scroll" style="margin-top:12px"><table><thead><tr><th>Recurso</th><th>Tipo</th><th class="num">Seq</th><th>Início</th><th>Fim</th><th>Situação</th>${canEdit?`<th>Sequência</th>`:""}</tr></thead><tbody>
+      ${rot.map(r=>`<tr><td><b>${esc(r.m.cod)}</b></td><td>${esc((r.m.tipo||"").toLowerCase())}</td><td class="num mono">${r.n||"—"}</td>
+        <td class="mono">${r.ini?`<button class="linkbtn" data-gdia="${r.ini.data}">${quando(r.ini)}</button>`:(r.feito?"Produzido":"Sem data")}</td><td class="mono">${r.fim?quando(r.fim):"—"}</td>
+        <td>${r.feito?`<span class="pill ok">Produzido</span>`:stPill(r.m.cod,r.p.id)}${r.espera?` <span class="pill np">⏳ aguarda impressora</span>`:""}</td>
+        ${canEdit?`<td>${r.feito||travada(r.m.cod,r.p.id)?`<span class="sub" style="margin:0">${r.feito?"—":"travada"}</span>`:`<button class="btn sm" data-gmv="-1" data-gm="${esc(r.m.cod)}" data-gid="${esc(r.p.id)}" title="Antecipar na fila">▲ Antes</button> <button class="btn sm" data-gmv="1" data-gm="${esc(r.m.cod)}" data-gid="${esc(r.p.id)}" title="Adiar na fila">▼ Depois</button>`}</td>`:""}</tr>`).join("")}
+      </tbody></table></div></section>`;
+  }
+  return `<div class="head"><div><h1>Gantt</h1><p class="sub">Todas as máquinas, 24 horas. ${canEdit?"Arraste uma OP sobre outra da mesma máquina para mudar a sequência. ":""}Toque na OP para ver o roteiro dela.</p></div>
+    <div class="gt-nav"><button class="btn" data-gdia="${addDia(dia,-1)}" aria-label="Dia anterior">‹</button><input type="date" id="gDia" value="${dia}"><button class="btn" data-gdia="${addDia(dia,1)}" aria-label="Próximo dia">›</button></div></div>
+  ${painel}
+  <section class="panel gt" style="padding:0">
+    <div class="gt-cap"><b>${dow(dia)}, ${dBR(dia)}</b>${turnos.length?`<span class="sub" style="margin:0">Turnos: ${turnos.map(t=>hm(t[0])+"–"+hm(t[1])).join(" · ")}</span>`:`<span class="sub" style="margin:0;color:var(--bad)">Sem calendário neste dia</span>`}${dia<ini?`<span class="sub" style="margin:0">A programação começa em ${dBR(ini)}</span>`:""}</div>
+    <div class="gt-sc" data-x="${turnos.length ? Math.max(0,(turnos[0][0]-30)/1440) : 0}"><div class="gt-in">
+      <div class="gt-row gt-ax"><div class="gt-m"></div><div class="gt-t">${horas.map(h=>`<span style="left:${pct(h*60)}">${pad(h)}</span>`).join("")}</div></div>
+      ${linhas}
+    </div></div>
+    <div class="legend" style="padding:10px 14px"><span><i class="gt-lg off"></i>Sem calendário</span><span><i style="background:var(--setup)"></i>Setup</span><span><i style="background:var(--clean)"></i>Limpeza / início de turno</span><span><i class="gt-lg wait"></i>Aguardando impressora</span><span>Cada OP tem uma cor, igual em todas as máquinas do roteiro.</span></div>
+  </section>`;
+}
+function moverNaFila(cod, id, alvoId, dir){
+  const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
+  const ids = ordenar(cod, pend).map(s=>s.p.id); const i = ids.indexOf(id); if (i<0) return;
+  if (travada(cod, id)) { toast("Esta OP está travada (Programado). Abra o cadeado para mudar a posição.", true); return; }
+  if (alvoId){ const j = ids.indexOf(alvoId); if (j<0 || j===i) return; ids.splice(i,1); ids.splice(j,0,id); }
+  else { let j = i+dir; while (j>=0 && j<ids.length && travada(cod, ids[j])) j+=dir; if (j<0 || j>=ids.length) return; [ids[i],ids[j]] = [ids[j],ids[i]]; }
+  salvarOrdem(cod, ids);
+}
+
 /* ---------- Indicadores de produção ---------- */
 const ICO_DASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15v3M11 10v8M15 12v6M19 6v12"/></svg>`;
 const isoLocal = t => { const d = new Date(t); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
@@ -1346,6 +1458,7 @@ function viewInicio(){
     <a class="tile" href="#maquinas"><span class="ic">${ICO_MAQ}</span><span><b>Máquinas</b><small>${nm} máquina${nm===1?"":"s"} cadastrada${nm===1?"":"s"}</small></span></a>
     <button class="tile dark" data-act="relatorio"><span class="ic">${ICO_PRT}</span><span><b>Imprimir programação</b><small>PDF por máquina e data</small></span></button>
     <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
+    <a class="tile" href="#gantt"><span class="ic">${ICO_GANTT}</span><span><b>Gantt</b><small>Todas as máquinas, 24 horas</small></span></a>
     <a class="tile" href="#indicadores"><span class="ic">${ICO_DASH}</span><span><b>Indicadores</b><small>Caixas por dia e peças por hora</small></span></a>
     <a class="tile" href="#calendario"><span class="ic">${ICO_CAL}</span><span><b>Calendário</b><small>Dias e turnos de trabalho</small></span></a>
     ${ROUTES.usuarios && typeof ehAdmin==="function" && ehAdmin() ? `<a class="tile" href="#usuarios"><span class="ic">${ICO_USR}</span><span><b>Usuários</b><small>Liberar acesso${(()=>{const n=(usuarios||[]).filter(u=>u.papel==="pendente").length; return n?` · ${n} aguardando`:"";})()}</small></span></a>` : ""}
@@ -1361,7 +1474,7 @@ function viewProduzidas(){
     <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx em reprogramação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("")
   : `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>`}`;
 }
-const ROUTES = {inicio:viewInicio, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
+const ROUTES = {inicio:viewInicio, gantt:viewGantt, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
 function route(){ const h = location.hash.replace("#","").split("/")[0]; return ROUTES[h] ? h : "inicio"; }
 function render(){
   AGC.clear();
@@ -1370,6 +1483,9 @@ function render(){
   const f = document.activeElement && document.activeElement.id; const pos = f==="q" ? document.activeElement.selectionStart : null;
   const naMaq = /^#(sequencia|indicadores)\/./.test(location.hash); const volta = "#"+location.hash.slice(1).split("/")[0];
   app.innerHTML = (r!=="inicio" ? `<div class="voltar"><a class="btn-inicio" href="#inicio">${ICO_HOME}Início</a>${naMaq?`<a class="btn-inicio alt" href="${volta}">${ICO_HOME}Máquinas</a>`:""}</div>` : "") + ROUTES[r]();
+  { const sc = app.querySelector(".gt-sc"); if (sc){ const inn = sc.querySelector(".gt-in"); const cols = inn.scrollWidth - 120;
+      sc.scrollLeft = UI.gScroll!=null ? UI.gScroll : Math.max(0, Number(sc.dataset.x)*cols);
+      sc.addEventListener("scroll", () => { UI.gScroll = sc.scrollLeft; }, {passive:true}); } }
   if (f){ const el = document.getElementById(f); if (el){ el.focus(); if (pos!=null && el.setSelectionRange) el.setSelectionRange(pos,pos); } }
 }
 let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render, 30); };
@@ -1377,6 +1493,11 @@ let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render
 /* ---------- eventos ---------- */
 app.addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.gop){ UI.gOp = (UI.gOp===b.dataset.gop ? "" : b.dataset.gop); render(); return; }
+  if (b.dataset.gdia){ UI.gDia = b.dataset.gdia; UI.gScroll = null; render(); return; }
+  if (b.dataset.gmv){ moverNaFila(b.dataset.gm, b.dataset.gid, null, Number(b.dataset.gmv)); return; }
+  if (b.dataset.act==="gDet"){ UI.gDet = !UI.gDet; render(); return; }
+  if (b.dataset.act==="gTodas"){ UI.gOp = ""; UI.gDet = false; render(); return; }
   if (b.dataset.dper){ UI.dPer=Number(b.dataset.dper); render(); return; }
   if (b.dataset.cmaq!==undefined){ UI.cMaq=b.dataset.cmaq; saveUI(); render(); return; }
   if (b.dataset.cdia!==undefined){ UI.cDia = (UI.cDia===b.dataset.cdia ? "" : b.dataset.cdia); render(); return; }
@@ -1450,6 +1571,7 @@ app.addEventListener("input", e => { if (e.target.id==="q"){ UI.q=e.target.value
 app.addEventListener("change", e => {
   const t=e.target;
   if (t.id==="ini"){ UI.inicio=t.value||null; render(); }
+  if (t.id==="gDia" && t.value){ UI.gDia=t.value; UI.gScroll=null; render(); }
   if (t.id==="cMaq"){ UI.cMaq=t.value; saveUI(); render(); }
   if (t.id==="cDia"){ UI.cDia=t.value; render(); }
   if (t.id==="showDone"){ UI.showDone=t.checked; render(); }
@@ -1473,6 +1595,12 @@ app.addEventListener("dragover", e => { const li=e.target.closest && e.target.cl
 app.addEventListener("drop", e => { const li=e.target.closest && e.target.closest("#fila li"); if (!li || !dragId) return; e.preventDefault();
   const after = li.classList.contains("over-bottom"); const ids=filaIds().filter(x=>x!==dragId); let k=ids.indexOf(li.dataset.id); if (li.dataset.id===dragId){ dragId=null; clearOver(); return; }
   ids.splice(after?k+1:k, 0, dragId); dragId=null; clearOver(); salvarOrdem(UI.maq, ids); });
+/* Gantt: arrastar uma OP sobre outra da mesma máquina muda a sequência */
+let gDrag = null;
+app.addEventListener("dragstart", e => { const b = e.target.closest && e.target.closest(".gt-b[draggable]"); if (!b) return; gDrag = {id:b.dataset.gid, m:b.dataset.gm}; try{ e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", gDrag.id); }catch(_){} });
+app.addEventListener("dragover", e => { if (!gDrag) return; const b = e.target.closest && e.target.closest(".gt-b.pr"); document.querySelectorAll(".gt-b.drop").forEach(x=>x.classList.remove("drop")); if (!b || b.dataset.gm!==gDrag.m || b.dataset.gid===gDrag.id) return; e.preventDefault(); b.classList.add("drop"); });
+app.addEventListener("drop", e => { if (!gDrag) return; const b = e.target.closest && e.target.closest(".gt-b.pr"); const g = gDrag; gDrag = null; document.querySelectorAll(".gt-b.drop").forEach(x=>x.classList.remove("drop")); if (!b || b.dataset.gm!==g.m || b.dataset.gid===g.id) return; e.preventDefault(); moverNaFila(g.m, g.id, b.dataset.gid); });
+app.addEventListener("dragend", () => { gDrag = null; document.querySelectorAll(".gt-b.drop").forEach(x=>x.classList.remove("drop")); });
 app.addEventListener("dragend", () => { dragId=null; clearOver(); document.querySelectorAll("#fila li.dragging").forEach(li=>li.classList.remove("dragging")); });
 
 render();
