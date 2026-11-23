@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261123183453";</script>
+<script>window.APP_VERSAO="20261123184939";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -111,6 +111,22 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .gt-act{display:flex;gap:6px;flex-wrap:wrap}
 .btn.sm{padding:4px 8px;font-size:12px}
 @media (max-width:640px){.gt-m{width:84px;padding:6px}}
+.vtabs{margin:4px 0 12px;flex-wrap:wrap}
+.vc-send{background:var(--brand);color:#fff;border-color:var(--brand)}
+.pill.warn{background:#fff3bf;color:#8a6100;border-color:transparent}
+.vc{display:flex;flex-direction:column;gap:10px;padding:14px}
+.vc-l{display:flex;flex-direction:column;gap:10px;max-height:calc(100svh - 360px);min-height:260px;overflow-y:auto;padding:4px}
+.vc-m{display:flex;gap:8px;align-items:flex-end;max-width:92%}
+.vc-m.eu{align-self:flex-end;flex-direction:row-reverse}
+.vc-av{font-size:22px;line-height:1}
+.vc-b{padding:10px 14px;border-radius:14px;background:var(--surface2);line-height:1.45;font-size:14px}
+.vc-m.bot .vc-b{border-bottom-left-radius:4px}
+.vc-m.eu .vc-b{background:var(--brand);color:#fff;border-bottom-right-radius:4px}
+.vc-b small{color:var(--muted,#6b7280)}
+.vc-f{display:flex;gap:8px}
+.vc-f input{flex:1;min-width:0;font-size:16px}
+.vc-sug{display:flex;flex-wrap:wrap;gap:6px}
+@media (max-width:700px){.vcart thead{display:none}.vcart,.vcart tbody,.vcart tr,.vcart td{display:block;width:100%}.vcart tr{padding:12px 14px;border-bottom:1px solid var(--line,#e5e7eb)}.vcart td{border:0!important;padding:3px 0!important;text-align:left!important}.vcart td[data-l]{display:flex;justify-content:space-between;gap:12px}.vcart td[data-l]::before{content:attr(data-l);color:var(--muted,#6b7280);font-size:12px;text-transform:uppercase;letter-spacing:.04em}.vcart .vc-op{font-size:16px}.vcart .vc-act{padding-top:8px!important}.vcart .vc-act .btn{width:100%}}
 .db-chart{display:flex;align-items:flex-end;gap:6px;height:220px;overflow-x:auto;padding:4px 2px 0}
 .db-col{flex:1 0 34px;max-width:64px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
 .db-track{position:relative;flex:1;width:100%;margin-top:18px}
@@ -1325,7 +1341,7 @@ function roteiroOP(key, ini){
   for (const m of maqList()){
     const p = S.pedidos.find(x=>x.maquina===m.cod && opKey(x)===key); if (!p) continue;
     const feito = !!(S.apont[p.id] && S.apont[p.id].feito);
-    const ag = feito ? null : agendar(m.cod, ini); const f = ag && ag.info[p.id];
+    let ag = null; if (!feito){ const key = m.cod+"|"+ini; ag = AGC.get(key); if (!ag){ ag = agendar(m.cod, ini); AGC.set(key, ag); } } const f = ag && ag.info[p.id];
     out.push({m, p, feito, n: f ? f.n : null, ini: f && f.ini, fim: f && f.fim, espera: f && f.espera});
   }
   return out.sort((a,b)=> (a.ini ? a.ini.data+pad(Math.round(a.ini.h)).padStart(5,"0") : "z") .localeCompare(b.ini ? b.ini.data+pad(Math.round(b.ini.h)).padStart(5,"0") : "z"));
@@ -1416,6 +1432,126 @@ function moverNaFila(cod, id, alvoId, dir){
   salvarOrdem(cod, ids);
 }
 
+/* ---------- Vendas: robô de previsão de pedidos ---------- */
+const ICO_CHAT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/></svg>`;
+const V_STOP = new Set("QUANDO QUE FICA FICAM PRONTO PRONTA PRONTOS PRONTAS PEDIDO PEDIDOS OP OPS ORDEM PRODUCAO DO DA DE DOS DAS O A OS AS E EM NO NA PARA PRA QUAL QUAIS PREVISAO PREVISTO PREVISTA DATA ENTREGA CODIGO COD PRODUTO DESCRICAO CAIXA CAIXAS CX ME DIZ DIGA SABER QUERO GOSTARIA POR FAVOR FAVOR OLA OI BOM DIA TARDE NOITE VAI SAI SAIR TERMINA TERMINAR FICARA ESTA ESTAO STATUS SITUACAO UM UMA COM SOBRE N NUMERO NRO NO.".split(" "));
+const vNorm = s => normName(s||"").replace(/[^A-Z0-9 ]/g," ").replace(/\s+/g," ").trim();
+const vCompact = s => normName(s||"").replace(/[^A-Z0-9]/g,"");
+function vBuscar(texto){
+  const toks = vNorm(texto).split(" ").filter(t=>t && !V_STOP.has(t));
+  const brutos = String(texto).split(/\s+/).map(vCompact).filter(t=>t.length>=3 && /\d/.test(t));
+  const grupos = new Map(); for (const p of S.pedidos){ const k = opKey(p) || p.id; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(p); }
+  const res = [];
+  for (const [k, ps] of grupos){
+    const p = ps[0]; const op = vCompact(p.op), cod = vCompact(p.codigo);
+    let sc = 0;
+    for (const b of brutos){ if (op && op===b) sc = Math.max(sc, 100); else if (op && op.includes(b)) sc = Math.max(sc, 80 + Math.min(10,b.length)); if (cod && cod===b) sc = Math.max(sc, 90); else if (cod && cod.includes(b)) sc = Math.max(sc, 70); }
+    if (!sc && toks.length){ const alvo = " "+vNorm([p.descricao,p.cliente,p.codigo,p.op].join(" "))+" "; const ok = toks.filter(t=>alvo.includes(t)).length; if (ok===toks.length) sc = 50 + ok; else if (ok && ok>=Math.ceil(toks.length*0.6)) sc = 20 + ok; }
+    if (sc) res.push({k, p, ps, sc});
+  }
+  res.sort((a,b)=>b.sc-a.sc); const top = res.length ? res[0].sc : 0;
+  return {toks, itens: res.filter(r=>r.sc >= (top>=80 ? 80 : top>=50 ? 50 : 1))};
+}
+function vPrevisao(k){
+  const ini = UI.inicio || firstDay(); const rot = roteiroOP(k, ini);
+  const pend = rot.filter(r=>!r.feito);
+  const ult = pend.filter(r=>r.fim).reduce((a,r)=>!a || (r.fim.data+String(r.fim.h).padStart(6,"0")) > (a.fim.data+String(a.fim.h).padStart(6,"0")) ? r : a, null);
+  return {rot, pend, ult, semData: pend.some(r=>!r.fim)};
+}
+function vResposta(texto){
+  const t = vNorm(texto);
+  if (!t) return "Digite o número da OP, o código do produto ou parte da descrição.";
+  if (/^(OI|OLA|BOM DIA|BOA TARDE|BOA NOITE|AJUDA|HELP)\b/.test(t) && t.split(" ").length<=3) return "Olá! Pergunte, por exemplo: <i>quando fica pronta a OP 000008-4?</i>, <i>código 250.0027</i> ou <i>caixa pedra sanitária</i>.";
+  if (!S.pedidos.length) return "Ainda não há programação carregada. Peça ao programador para atualizar a planilha.";
+  if (/\bATRASAD/.test(t)){ const at = [...new Set(S.pedidos.map(p=>opKey(p)||p.id))].map(k=>({k, s:vStatus(k)})).filter(x=>x.s && x.s.st==="atraso");
+    return at.length ? `Há <b>${at.length}</b> pedido(s) atrasado(s):<br><br>${at.slice(0,10).map(x=>`<b>OP ${esc(opN(x.s.p))}</b> · ${esc(x.s.p.cliente||"")} · entrega ${x.s.p.entrega?dBR(x.s.p.entrega):"—"} · previsão ${x.s.f?dShort(x.s.f.data)+" "+hm(x.s.f.h):"sem data"}`).join("<br>")}` : "Nenhum pedido atrasado. 👍"; }
+  const {itens, toks} = vBuscar(texto);
+  if (!itens.length && !toks.length && !/\d{3}/.test(texto)) return `Preciso de um detalhe a mais: o número da OP, o código do produto ou uma palavra da descrição (ex.: <i>pedra sanitária</i>).`;
+  if (!itens.length) return `Não encontrei nenhum pedido com <b>${esc(texto)}</b>. Tente o número da OP (ex.: 000008-4), o código do produto ou uma palavra da descrição.`;
+  const hoje = todayISO();
+  const linha = (r, curta) => {
+    const p = r.p, pv = vPrevisao(r.k); const cab = `<b>OP ${esc(opN(p))}</b> · ${esc(p.descricao||"")}${p.cliente?` · ${esc(p.cliente)}`:""}`;
+    const qtd = r.ps.reduce((m,x)=>Math.max(m, Number(x.quantidade)||0),0);
+    if (!pv.pend.length) return `${cab}<br>✅ <b>Já está pronta</b> (todos os processos foram apontados como produzidos).`;
+    if (pv.semData || !pv.ult) return `${cab}<br>⚠️ Ainda <b>sem data</b>: ${pv.pend.filter(x=>!x.fim).map(x=>esc(x.m.cod)).join(", ")} não coube no calendário. Fale com o PCP.`;
+    const f = pv.ult.fim; const late = p.entrega && f.data > p.entrega;
+    const quando = `${dow(f.data).toLowerCase()}, ${dBR(f.data)} às ${hm(f.h)}`;
+    const rot = pv.rot.map(x=>`${esc(x.m.cod)}: ${x.feito?"produzido":x.fim?`${dShort(x.ini.data)} ${hm(x.ini.h)} → ${dShort(x.fim.data)} ${hm(x.fim.h)}`:"sem data"}`).join("<br>");
+    const prog = pv.pend.every(x=>travada(x.m.cod, x.p.id)) ? "programada (confirmada pelo PCP)" : "previsão pela sequência atual, ainda pode mudar";
+    if (curta) return `${cab}<br>🕒 Pronta em <b>${quando}</b>${late?` · <span class="late">após a entrega (${dBR(p.entrega)})</span>`:""}`;
+    const txtCli = `Olá! O pedido OP ${opN(p)}${p.descricao?` (${p.descricao})`:""} tem previsão de ficar pronto em ${dBR(f.data)} às ${hm(f.h)}.${p.entrega?` Data de entrega combinada: ${dBR(p.entrega)}.`:""} Triapack Embalagens.`;
+    return `${cab}${qtd?` · ${fmtN(qtd)} cx`:""}<br>🕒 Fica pronta em <b>${quando}</b> (último processo: ${esc(pv.ult.m.cod)}).<br>${p.entrega?(late?`⚠️ <span class="late">Depois da data de entrega (${dBR(p.entrega)}).</span>`:`📦 Entrega ${dBR(p.entrega)}: <b>no prazo</b>.`):""}<br><small>${prog}.</small><details style="margin-top:6px"><summary>Ver roteiro</summary><small>${rot}</small></details><button type="button" class="btn sm" style="margin-top:8px" data-vcopy="${esc(txtCli)}">📋 Copiar resposta para o cliente</button>`;
+  };
+  if (itens.length===1) return linha(itens[0], false);
+  const mostra = itens.slice(0,6);
+  return `Encontrei <b>${itens.length}</b> pedidos. ${itens.length>6?"Os 6 primeiros:":""}<br><br>${mostra.map(r=>linha(r,true)).join("<br><br>")}<br><br><small>Para ver os detalhes, pergunte pelo número da OP.</small>`;
+}
+function vStatus(k){
+  const pv = vPrevisao(k); const p = pv.rot.length ? pv.rot[0].p : null; const hoje = todayISO();
+  if (!pv.rot.length) return null;
+  const ent = p.entrega || "";
+  if (!pv.pend.length) return {pv, p, st:"pronto", lab:"Pronto", cls:"ok"};
+  if (pv.semData || !pv.ult) return {pv, p, st:"semdata", lab:"Sem data", cls:"bad"};
+  const f = pv.ult.fim;
+  if ((ent && f.data > ent) || (ent && ent < hoje)) return {pv, p, f, st:"atraso", lab:"Atrasado", cls:"bad"};
+  if (ent && f.data === ent) return {pv, p, f, st:"risco", lab:"No limite", cls:"warn"};
+  return {pv, p, f, st:"prazo", lab:"No prazo", cls:"ok"};
+}
+function viewVendas(){
+  const tab = UI.vTab || "robo";
+  const grupos = new Map(); for (const p of S.pedidos){ const k = opKey(p) || p.id; if (!grupos.has(k)) grupos.set(k, []); grupos.get(k).push(p); }
+  const cart = [...grupos.keys()].map(k=>{ const st = vStatus(k); return st ? {k, ...st, qtd: Math.max(...grupos.get(k).map(x=>Number(x.quantidade)||0))} : null; }).filter(Boolean);
+  const abertos = cart.filter(c=>c.st!=="pronto");
+  const n = st => cart.filter(c=>c.st===st).length;
+  const pctPrazo = abertos.length ? Math.round((n("prazo")+n("risco"))/abertos.length*100) : 100;
+  const kpis = `<div class="kpis">
+    <div class="kpi"><span>Pedidos em carteira</span><b>${abertos.length}</b><div class="sub" style="margin:0">${fmtN(abertos.reduce((t,c)=>t+c.qtd,0))} caixas</div></div>
+    <div class="kpi"><span>No prazo</span><b style="color:${pctPrazo>=90?"var(--ok)":pctPrazo>=70?"#c99a06":"var(--bad)"}">${pctPrazo}%</b><div class="sub" style="margin:0">${n("prazo")} no prazo · ${n("risco")} no limite</div></div>
+    <div class="kpi"><span>Atrasados</span><b class="${n("atraso")?"late":""}">${n("atraso")}</b><div class="sub" style="margin:0">${n("semdata")} sem data</div></div>
+    <div class="kpi"><span>Prontos</span><b>${n("pronto")}</b><div class="sub" style="margin:0">aguardando expedição</div></div>
+  </div>`;
+  const tabs = `<div class="seg vtabs" role="tablist">${[["robo","🤖 Robô de prazos"],["carteira","📋 Carteira de pedidos"],["clientes","👥 Clientes"]].map(([v,l])=>`<button class="btn" role="tab" data-vtab="${v}" aria-pressed="${tab===v}">${l}</button>`).join("")}</div>`;
+  const pill = c => `<span class="pill ${c.cls==="ok"?"ok":c.cls==="bad"?"bad":"warn"}">${c.lab}</span>`;
+  let corpo = "";
+  if (tab==="robo"){
+    if (!UI.chat) UI.chat = [{de:"bot", t:"Olá! Sou o robô de prazos da Triapack. Pergunte quando fica pronto um pedido pelo <b>número da OP</b>, <b>código do produto</b> ou <b>descrição</b>. Depois é só copiar a resposta e enviar ao cliente."}];
+    corpo = `<section class="panel vc">
+    <div class="vc-l" id="vcL">${UI.chat.map(m=>`<div class="vc-m ${m.de}">${m.de==="bot"?`<span class="vc-av">🤖</span>`:""}<div class="vc-b">${m.t}</div></div>`).join("")}</div>
+    <form class="vc-f" id="vcF" autocomplete="off"><input id="vcIn" type="text" placeholder="Ex.: quando fica pronta a OP 000008-4?" aria-label="Pergunta"><button type="submit" class="btn vc-send">Perguntar</button></form>
+    <div class="vc-sug">${["OP "+(S.pedidos[0]?String(S.pedidos[0].op||"").split("/")[0]:"000000"), S.pedidos[1]&&S.pedidos[1].codigo?"código "+S.pedidos[1].codigo:"", S.pedidos[2]&&S.pedidos[2].descricao?S.pedidos[2].descricao.split(" ").slice(0,3).join(" ").toLowerCase():"", "atrasados"].filter(Boolean).map(x=>`<button type="button" class="btn sm" data-vsug="${esc(x)}">${esc(x)}</button>`).join("")}</div>
+  </section>`;
+  } else if (tab==="carteira"){
+    const q = vNorm(UI.vQ||""); const fc = UI.vCli||""; const fs = UI.vSt||"";
+    const clientes = [...new Set(cart.map(c=>c.p.cliente).filter(Boolean))].sort();
+    const lista = cart.filter(c=>(!fc||c.p.cliente===fc) && (!fs||c.st===fs) && (!q || vNorm([c.p.op,c.p.codigo,c.p.descricao,c.p.cliente].join(" ")).includes(q)))
+      .sort((a,b)=>({atraso:0,semdata:1,risco:2,prazo:3,pronto:4}[a.st]-{atraso:0,semdata:1,risco:2,prazo:3,pronto:4}[b.st]) || String(a.p.entrega||"9").localeCompare(String(b.p.entrega||"9")));
+    corpo = `<div class="panel controls">
+      <label class="f">Buscar<input type="search" id="vQ" value="${esc(UI.vQ||"")}" placeholder="OP, código, produto…"></label>
+      <label class="f">Cliente<select id="vCli"><option value="">Todos</option>${clientes.map(c=>`<option ${fc===c?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
+      <label class="f">Situação<select id="vSt"><option value="">Todas</option>${[["atraso","Atrasado"],["risco","No limite"],["prazo","No prazo"],["semdata","Sem data"],["pronto","Pronto"]].map(([v,l])=>`<option value="${v}" ${fs===v?"selected":""}>${l}</option>`).join("")}</select></label>
+    </div>
+    <section class="panel" style="padding:0"><div class="scroll"><table class="vcart"><thead><tr><th>OP</th><th>Produto</th><th>Cliente</th><th class="num">Qtd</th><th>Entrega</th><th>Previsão de pronto</th><th>Situação</th><th></th></tr></thead><tbody>
+    ${lista.map(c=>`<tr><td class="mono vc-op"><b>${esc(opN(c.p))}</b></td><td>${esc(c.p.descricao||"")}<div class="sub" style="margin:0">${esc(c.p.codigo||"")}</div></td><td data-l="Cliente">${esc(c.p.cliente||"")}</td><td class="num" data-l="Qtd">${fmtN(c.qtd)}</td><td class="mono" data-l="Entrega">${c.p.entrega?dBR(c.p.entrega):"—"}</td><td class="mono" data-l="Previsão">${c.st==="pronto"?"Pronto":c.f?`${dShort(c.f.data)} ${hm(c.f.h)}`:"—"}</td><td data-l="Situação">${pill(c)}</td><td class="vc-act"><button class="btn sm" data-vsug="OP ${esc(String(c.p.op||c.p.codigo||""))}" data-vgo="1">Perguntar</button></td></tr>`).join("") || `<tr><td colspan="8" class="empty">Nenhum pedido com esse filtro.</td></tr>`}
+    </tbody></table></div></section>`;
+  } else {
+    const porCli = new Map(); for (const c of cart){ const k = c.p.cliente || "(sem cliente)"; if (!porCli.has(k)) porCli.set(k, []); porCli.get(k).push(c); }
+    const linhas = [...porCli.entries()].map(([cli, cs])=>{ const ab = cs.filter(c=>c.st!=="pronto"); const prox = ab.map(c=>c.p.entrega).filter(Boolean).sort()[0];
+      return {cli, ab:ab.length, cx:ab.reduce((t,c)=>t+c.qtd,0), atr:ab.filter(c=>c.st==="atraso").length, pr:cs.filter(c=>c.st==="pronto").length, prox}; }).sort((a,b)=>b.atr-a.atr || b.cx-a.cx);
+    corpo = `<section class="panel" style="padding:0"><div class="scroll"><table><thead><tr><th>Cliente</th><th class="num">Pedidos abertos</th><th class="num">Caixas em carteira</th><th>Próxima entrega</th><th class="num">Atrasados</th><th class="num">Prontos</th><th></th></tr></thead><tbody>
+    ${linhas.map(l=>`<tr><td><b>${esc(l.cli)}</b></td><td class="num">${l.ab}</td><td class="num">${fmtN(l.cx)}</td><td class="mono">${l.prox?dBR(l.prox):"—"}</td><td class="num">${l.atr?`<b class="late">${l.atr}</b>`:"0"}</td><td class="num">${l.pr}</td><td><button class="btn sm" data-vcli="${esc(l.cli)}">Ver pedidos</button></td></tr>`).join("")}
+    </tbody></table></div></section>`;
+  }
+  return `<div class="head"><div><h1>Vendas</h1><p class="sub">Prazos e carteira de pedidos pela programação atual da produção.</p></div></div>
+  ${kpis}${tabs}${corpo}
+  <p class="sub" style="font-size:12px">Previsão de pronto = fim do último processo do roteiro (impressora e/ou coladeira) na programação atual. "No limite" = fica pronto no próprio dia da entrega. A previsão muda quando o PCP altera a sequência.</p>`;
+}
+function vPerguntar(txt){
+  txt = String(txt||"").trim(); if (!txt) return;
+  UI.chat.push({de:"eu", t:esc(txt)}); UI.chat.push({de:"bot", t:vResposta(txt)});
+  if (UI.chat.length > 40) UI.chat.splice(1, UI.chat.length-40);
+  render(); const l = document.getElementById("vcL"); if (l) l.scrollTop = l.scrollHeight; const i = document.getElementById("vcIn"); if (i) i.focus();
+}
+
 /* ---------- Indicadores de produção ---------- */
 const ICO_DASH = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15v3M11 10v8M15 12v6M19 6v12"/></svg>`;
 const isoLocal = t => { const d = new Date(t); return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate()); };
@@ -1476,6 +1612,7 @@ function viewInicio(){
     <a class="tile" href="#maquinas"><span class="ic">${ICO_MAQ}</span><span><b>Máquinas</b><small>${nm} máquina${nm===1?"":"s"} cadastrada${nm===1?"":"s"}</small></span></a>
     <button class="tile dark" data-act="relatorio"><span class="ic">${ICO_PRT}</span><span><b>Imprimir programação</b><small>PDF por máquina e data</small></span></button>
     <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
+    <a class="tile" href="#vendas"><span class="ic">${ICO_CHAT}</span><span><b>Vendas</b><small>Quando fica pronto um pedido</small></span></a>
     <a class="tile" href="#gantt"><span class="ic">${ICO_GANTT}</span><span><b>Gantt</b><small>Todas as máquinas, 24 horas</small></span></a>
     <a class="tile" href="#indicadores"><span class="ic">${ICO_DASH}</span><span><b>Indicadores</b><small>Caixas por dia e peças por hora</small></span></a>
     <a class="tile" href="#calendario"><span class="ic">${ICO_CAL}</span><span><b>Calendário</b><small>Dias e turnos de trabalho</small></span></a>
@@ -1492,7 +1629,7 @@ function viewProduzidas(){
     <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx em reprogramação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("")
   : `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>`}`;
 }
-const ROUTES = {inicio:viewInicio, gantt:viewGantt, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
+const ROUTES = {inicio:viewInicio, gantt:viewGantt, vendas:viewVendas, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
 function route(){ const h = location.hash.replace("#","").split("/")[0]; return ROUTES[h] ? h : "inicio"; }
 function render(){
   AGC.clear();
@@ -1511,6 +1648,10 @@ let rt = null; const schedule = () => { clearTimeout(rt); rt = setTimeout(render
 /* ---------- eventos ---------- */
 app.addEventListener("click", async e => {
   const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.vtab){ UI.vTab = b.dataset.vtab; render(); return; }
+  if (b.dataset.vcli){ UI.vCli = b.dataset.vcli; UI.vSt = ""; UI.vTab = "carteira"; render(); return; }
+  if (b.dataset.vcopy){ const t = b.dataset.vcopy; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(()=>toast("Resposta copiada. Cole no WhatsApp ou e-mail do cliente."), ()=>{ prompt("Copie o texto:", t); }); return; }
+  if (b.dataset.vsug){ if (b.dataset.vgo) UI.vTab = "robo"; if (!UI.chat) viewVendas(); vPerguntar(b.dataset.vsug); return; }
   if (b.dataset.gop){ UI.gOp = (UI.gOp===b.dataset.gop ? "" : b.dataset.gop); UI.gScroll = null; render(); return; }
   if (b.dataset.gx){ UI.gScroll = Math.max(0, Number(b.dataset.gx)-30)/60*44; render(); return; }
   if (b.dataset.gmv){ moverNaFila(b.dataset.gm, b.dataset.gid, null, Number(b.dataset.gmv)); return; }
@@ -1585,10 +1726,13 @@ app.addEventListener("click", e => { if (e.target.closest("button,a,input,select
 app.addEventListener("keydown", e => { if ((e.key==="Enter"||e.key===" ") && e.target.matches && e.target.matches("tr[data-op]")){ e.preventDefault(); abrirOP(e.target.dataset.op); } });
 document.getElementById("det").addEventListener("click", e => { if (e.target.id==="det") return fecharOP(); const b=e.target.closest("button"); if (!b) return; if (b.dataset.act==="fecharOP") fecharOP(); else if (b.dataset.feito) toggleFeito(b); else if (b.dataset.prod) abrirApontar(b.dataset.prod); else if (b.dataset.des) abrirDesenho(b.dataset.des); else if (b.dataset.lockop){ const p=S.pedidos.find(x=>x.id===b.dataset.lockop); if (p) alternarTrava(p.maquina, p.id).then(()=>abrirOP(p.id)); } });
 document.getElementById("viewer").addEventListener("click", e => { const v=document.getElementById("viewer"); if (e.target.id==="viewer" || (e.target.closest("button")&&e.target.closest("button").dataset.act==="fecharDes")){ v.hidden=true; const b=document.querySelector("#det [data-des]"); if (b) b.focus(); return; } if (e.target.id==="desImg") e.target.classList.toggle("zoom"); });
-app.addEventListener("input", e => { if (e.target.id==="q"){ UI.q=e.target.value; schedule(); } });
+app.addEventListener("submit", e => { if (e.target.id==="vcF"){ e.preventDefault(); const i=document.getElementById("vcIn"); vPerguntar(i.value); } });
+app.addEventListener("input", e => { if (e.target.id==="q"){ UI.q=e.target.value; schedule(); } if (e.target.id==="vQ"){ UI.vQ=e.target.value; schedule(); } });
 app.addEventListener("change", e => {
   const t=e.target;
   if (t.id==="ini"){ UI.inicio=t.value||null; render(); }
+  if (t.id==="vCli"){ UI.vCli=t.value; render(); }
+  if (t.id==="vSt"){ UI.vSt=t.value; render(); }
   if (t.id==="cMaq"){ UI.cMaq=t.value; saveUI(); render(); }
   if (t.id==="cDia"){ UI.cDia=t.value; render(); }
   if (t.id==="showDone"){ UI.showDone=t.checked; render(); }
