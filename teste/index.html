@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261124170922";</script>
+<script>window.APP_VERSAO="20261124171306";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -622,7 +622,27 @@ function liberacao(p, inicio){
   }
   return rel;
 }
+/* TESTE: OPs importadas do PDF do TrimBox usam os horários do TrimBox (enquanto a ordem for a do TrimBox) */
+const tbMin = s => { const m = String(s||"").match(/^(\d{4}-\d{2}-\d{2}) (\d{1,2}):(\d{2})$/); return m ? {data:m[1], h:Number(m[2])*60+Number(m[3])} : null; };
+function agendarTrimbox(cod, inicio, seq){
+  const queue = seq.map((s,i)=>({...s, n:i+1, rest:0, started:true, rel:null}));
+  const porDia = new Map(); const info = {};
+  for (const q of queue){
+    const a = tbMin(q.p.tbInicio), b = tbMin(q.p.tbFim); const qtdTot = saldo(q.p);
+    const segs = []; for (let d = a.data; d <= b.data; d = addDia(d, 1)){ segs.push({data:d, a: d===a.data ? a.h : 0, b: d===b.data ? b.h : 1440}); if (segs.length > 60) break; }
+    const segOk = segs.filter(x=>x.b > x.a); const tot = segOk.reduce((t,x)=>t+(x.b-x.a),0) || 1; let usado = 0;
+    segOk.forEach((x,i)=>{ const qtd = i===segOk.length-1 ? qtdTot-usado : Math.round(qtdTot*(x.b-x.a)/tot); usado += qtd;
+      if (!porDia.has(x.data)) porDia.set(x.data, []); porDia.get(x.data).push({t:"prod", a:x.a, b:x.b, q, qtd, part:i, comIntervalo: segOk.length>1}); });
+    info[q.p.id] = {n:q.n, ini:{data:a.data, h:a.h}, fim:{data:b.data, h:b.h}, grupo:q.grupo, rel:null, espera:false};
+  }
+  const dias = [...porDia.entries()].filter(([d])=>d >= inicio || true).sort((x,y)=>x[0].localeCompare(y[0])).map(([data, blocks])=>({data, blocks:blocks.sort((x,y)=>x.a-y.a)}));
+  return {dias, semData:[], seq:queue, info, trimbox:true};
+}
 function agendar(cod, inicio){
+  if (window.APP_TESTE && S.maquinas[cod]){ const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
+    if (pend.length && pend.every(p=>tbMin(p.tbInicio) && tbMin(p.tbFim))){ const seq = ordenar(cod, pend);
+      const tbOrd = [...pend].sort((x,y)=>String(x.tbInicio).localeCompare(String(y.tbInicio))).map(p=>p.id);
+      if (seq.every((s,i)=>s.p.id===tbOrd[i])) return agendarTrimbox(cod, inicio, seq); } }
   const m = S.maquinas[cod]; if (!m) return {dias:[], semData:[], seq:[]};
   const rate = Number(m.batidasMin)||0;               // caixas por minuto
   const L = Number(m.limpeza)||0, SU = Number(m.setup)||0;
@@ -957,7 +977,7 @@ function lerBoletim(linhas, escolhida){
     const ch = topo.map(x=>x.s.match(/^(\d{2,4})\s*[xX]\s*(\d{2,4})$/)).find(Boolean);
     const qtd = em(topo, H.qtd.x-3, H.palet.x-2).map(x=>num(x.s)).find(v=>v!=null);
     const ent = em(topo, H.data.x-6, H.ini.x-3).map(x=>dm(x.s)).find(Boolean);
-    const di = em(bl, H.ini.x-4, H.fim.x-4), df = em(bl, H.fim.x-4, H.ref.x-3);
+    const di = em(bl, H.ini.x-4, H.fim.x-10), df = em(bl, H.fim.x-10, H.ref.x-3);
     const dh = arr => { const d = arr.map(x=>dm(x.s)).find(Boolean), h = (arr.find(x=>/^\d{1,2}:\d{2}$/.test(x.s))||{}).s; return d ? d+(h?" "+h:"") : null; };
     const refFim = H.bol ? H.bol.x-10 : 9999;
     let desc = ""; { const ds = em(bl, H.ref.x-3, refFim); for (const d of ds){ desc += (desc?" ":"")+d.s; let fimD = d.x+d.w;
