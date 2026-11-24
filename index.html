@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261123184939";</script>
+<script>window.APP_VERSAO="20261124162933";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -1768,24 +1768,26 @@ render();
 /* ---------- conexão: Supabase (login + dados compartilhados) ---------- */
 function makeDb(sb){
   const subs = new Map(); const timers = {};
-  async function fetchCol(col){ let all=[], from=0; for(;;){ const {data,error} = await sb.from("docs").select("id,data").eq("col",col).range(from,from+999); if (error) throw error; all = all.concat(data); if (data.length<1000) break; from += 1000; } return all; }
+  const CP = window.APP_TESTE ? "teste_" : ""; /* app de teste grava em coleções separadas */
+  async function fetchCol(col){ let all=[], from=0; for(;;){ const {data,error} = await sb.from("docs").select("id,data").eq("col",CP+col).range(from,from+999); if (error) throw error; all = all.concat(data); if (data.length<1000) break; from += 1000; } return all; }
   const snap = rows => ({docs: rows.map(r=>({id:r.id, exists:true, data:()=>r.data})), metadata:{fromCache:false, hasPendingWrites:false}, size:rows.length, empty:!rows.length});
   const fail = e => ({code: (e && e.code) || "unavailable", message: (e && e.message) || String(e)});
   const docRef = (col,id) => ({ id, path:col+"/"+id,
-    async get(){ const {data,error} = await sb.from("docs").select("data").eq("col",col).eq("id",id).maybeSingle(); if (error) throw fail(error); return {id, exists:!!data, data:()=>data ? data.data : undefined}; },
-    async set(d){ const {error} = await sb.from("docs").upsert({col, id, data:d, updated_at:new Date().toISOString()}); if (error) throw fail(error); },
-    async delete(){ const {error} = await sb.from("docs").delete().eq("col",col).eq("id",id); if (error) throw fail(error); },
+    async get(){ const {data,error} = await sb.from("docs").select("data").eq("col",CP+col).eq("id",id).maybeSingle(); if (error) throw fail(error); return {id, exists:!!data, data:()=>data ? data.data : undefined}; },
+    async set(d){ const {error} = await sb.from("docs").upsert({col:CP+col, id, data:d, updated_at:new Date().toISOString()}); if (error) throw fail(error); },
+    async delete(){ const {error} = await sb.from("docs").delete().eq("col",CP+col).eq("id",id); if (error) throw fail(error); },
     onSnapshot(next, err){ return colRef(col).onSnapshot(s=>{ const d = s.docs.find(x=>x.id===id); next(d ? {id, exists:true, data:d.data} : {id, exists:false, data:()=>undefined}); }, err); } });
   const colRef = col => ({ path:col, doc:id=>docRef(col,id), async get(){ return snap(await fetchCol(col)); },
-    async setMany(entries){ for (let i=0;i<entries.length;i+=200){ const chunk = entries.slice(i,i+200).map(([id,d])=>({col, id, data:d, updated_at:new Date().toISOString()})); const {error} = await sb.from("docs").upsert(chunk); if (error) throw fail(error); } },
-    async deleteMany(ids){ for (let i=0;i<ids.length;i+=200){ const {error} = await sb.from("docs").delete().eq("col",col).in("id", ids.slice(i,i+200)); if (error) throw fail(error); } },
+    async setMany(entries){ for (let i=0;i<entries.length;i+=200){ const chunk = entries.slice(i,i+200).map(([id,d])=>({col:CP+col, id, data:d, updated_at:new Date().toISOString()})); const {error} = await sb.from("docs").upsert(chunk); if (error) throw fail(error); } },
+    async deleteMany(ids){ for (let i=0;i<ids.length;i+=200){ const {error} = await sb.from("docs").delete().eq("col",CP+col).in("id", ids.slice(i,i+200)); if (error) throw fail(error); } },
     onSnapshot(next, err){ let alive = true; const run = async () => { try { const rows = await fetchCol(col); if (alive) next(snap(rows)); } catch(e){ if (alive && err) err(fail(e)); } };
       run(); const set = subs.get(col) || new Set(); set.add(run); subs.set(col, set); return () => { alive = false; set.delete(run); }; } });
   sb.channel("docs-mudancas").on("postgres_changes", {event:"*", schema:"public", table:"docs"}, p => {
-    const col = (p.new && p.new.col) || (p.old && p.old.col); const cols = col ? [col] : [...subs.keys()];
+    let col = (p.new && p.new.col) || (p.old && p.old.col); if (col){ if (CP){ if (!col.startsWith(CP)) return; col = col.slice(CP.length); } else if (col.startsWith("teste_")) return; } const cols = col ? [col] : [...subs.keys()];
     cols.forEach(c => { clearTimeout(timers[c]); timers[c] = setTimeout(()=>{ (subs.get(c)||[]).forEach(fn=>fn()); }, 400); });
   }).subscribe();
-  return { collection: colRef, doc: path => { const [c,i] = path.split("/"); return docRef(c,i); }, refresh: () => subs.forEach(set => set.forEach(fn => fn())) };
+  return { collection: colRef, doc: path => { const [c,i] = path.split("/"); return docRef(c,i); }, refresh: () => subs.forEach(set => set.forEach(fn => fn())),
+    async oficial(col){ let all=[], from=0; for(;;){ const {data,error} = await sb.from("docs").select("id,data").eq("col",col).range(from,from+999); if (error) throw fail(error); all = all.concat(data); if (data.length<1000) break; from += 1000; } return all; } };
 }
 let sb = null, perfil = null;
 /* Administrador: só ele vê Usuários. Antes do SQL do admin (coluna inexistente), vale o programador. */
@@ -1866,6 +1868,10 @@ async function entrar(session){
   verificarVersao(true);
   if (iniciado) { render(); return; } iniciado = true;
   db = makeDb(sb); dbState = "ok"; render();
+  if (window.APP_TESTE && canEdit) (async()=>{ try { /* teste: começa com as máquinas e o calendário do app oficial (só leitura do oficial) */
+    for (const col of ["maquinas","calendario"]){ const cur = await db.collection(col).get(); if (!cur.empty) continue;
+      const rows = await db.oficial(col); if (rows.length) await db.collection(col).setMany(rows.map(r=>[r.id, r.data])); }
+    db.refresh(); } catch(e){ toast("Não foi possível copiar máquinas/calendário do app oficial: "+(e.message||e), true); } })();
   const slow = setTimeout(()=>{ if (!(S.loaded.m&&S.loaded.c&&S.loaded.p)){ dbState="slow"; render(); } }, 10000);
   const done = () => { if (S.loaded.m&&S.loaded.c&&S.loaded.p){ clearTimeout(slow); if (dbState==="slow") dbState="ok"; } schedule(); };
   const err = e => { clearTimeout(slow); dbState="off"; render(); };
