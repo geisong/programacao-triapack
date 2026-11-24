@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261124162933";</script>
+<script>window.APP_VERSAO="20261124163306";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -406,6 +406,7 @@ body{touch-action:manipulation;overflow-x:hidden}
     <p class="sub" style="margin:0">O sistema lê as abas Maquinas, Calendário, CORES e uma aba por máquina (FFG1228, DG2504, COL SEMIA, COL 1226). Pedidos que saíram da planilha somem da programação; os marcados como produzidos continuam marcados.</p>
     <div class="controls">
       <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls" hidden>
+      <input type="file" id="pdfIn" accept=".pdf,application/pdf" hidden>
       <button class="primary" id="pick">Escolher planilha</button>
       <button id="closeM">Fechar</button>
     </div>
@@ -893,6 +894,78 @@ async function importar(file){
   }catch(e){ const m="Não foi possível atualizar: "+(e && (e.message||e.code) || e); log.textContent += m+"\n"; toast(m, true); }
 }
 
+/* ---------- TESTE: importar o PDF de programação por máquina do TrimBox ---------- */
+async function carregarPdfJs(){
+  if (window.pdfjsLib) return window.pdfjsLib;
+  await new Promise((ok, ko)=>{ const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"; s.onload = ok; s.onerror = ()=>ko(new Error("não foi possível carregar o leitor de PDF (verifique a internet).")); document.head.appendChild(s); });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  return window.pdfjsLib;
+}
+async function linhasPdf(buf){
+  const L = await carregarPdfJs(); const doc = await L.getDocument({data:new Uint8Array(buf)}).promise; const linhas = [];
+  for (let i=1;i<=doc.numPages;i++){
+    const pg = await doc.getPage(i); const tc = await pg.getTextContent();
+    const its = tc.items.filter(t=>t.str && t.str.trim()).map(t=>({s:t.str.trim(), x:t.transform[4], y:t.transform[5], w:t.width||0})).sort((a,b)=>b.y-a.y || a.x-b.x);
+    for (const it of its){ const l = linhas[linhas.length-1]; if (l && l.pg===i && Math.abs(l.y-it.y)<=3) l.it.push(it); else linhas.push({pg:i, y:it.y, it:[it]}); }
+  }
+  linhas.forEach(l=>{ l.it.sort((a,b)=>a.x-b.x); l.t = l.it.map(x=>x.s).join(" "); });
+  return linhas;
+}
+const RX_OF = /\b(\d{5,7}-\d{1,3}\/\d{4,7}[A-Z]?)\b/;
+const RX_DH = /(\d{2}\/\d{2}\/\d{2,4})\s+(\d{1,2}:\d{2})/g;
+const isoBR = d => { const m = String(d||"").match(/(\d{2})\/(\d{2})\/(\d{2,4})/); if (!m) return null; const y = m[3].length===2 ? "20"+m[3] : m[3]; return `${y}-${m[2]}-${m[1]}`; };
+function lerPdfTrimbox(linhas){
+  const tudo = vCompact(linhas.map(l=>l.t).join(" "));
+  const maq = maqList().map(m=>m.cod).filter(c=>tudo.includes(vCompact(c))).sort((a,b)=>b.length-a.length)[0];
+  if (!maq) throw new Error("não achei no PDF o código de nenhuma máquina cadastrada ("+maqList().map(m=>m.cod).join(", ")+").");
+  /* cabeçalho: a linha com OF e Cliente; cada coluna = trecho de texto do cabeçalho */
+  const hi = linhas.findIndex(l=>/\bCLIENTE\b/.test(normName(l.t)) && /\bO\.?F\.?\b|REFER/.test(normName(l.t)));
+  const cols = []; if (hi>=0){ for (const it of linhas[hi].it){ const c = cols[cols.length-1]; if (c && it.x - (c.x1) < 3) { c.s += " "+it.s; c.x1 = it.x+it.w; } else cols.push({s:it.s, x0:it.x, x1:it.x+it.w}); } }
+  const chave = s => { const n = normName(s); return /^O\.?F/.test(n) ? "op" : /REFER/.test(n) ? "descricao" : /CLIENTE/.test(n) ? "cliente" : /ENT/.test(n) ? "entrega" : /CHAPA|MED/.test(n) ? "chapa" : /QTD|PROG/.test(n) && !/PRODUZ/.test(n) ? "quantidade" : /INIC/.test(n) ? "inicio" : /^FIM|TERM/.test(n) ? "fim" : /COR/.test(n) ? "cores" : null; };
+  cols.forEach(c=>c.k = chave(c.s));
+  const colDe = it => { if (!cols.length) return null; const cx = it.x + it.w/2; let best = null, bd = 1e9; for (const c of cols){ const d = cx < c.x0 ? c.x0-cx : cx > c.x1 ? cx-c.x1 : 0; if (d < bd){ bd = d; best = c; } } return best; };
+  const itens = [];
+  for (let i=(hi>=0?hi+1:0); i<linhas.length; i++){
+    const l = linhas[i]; const mOF = l.t.match(RX_OF); if (!mOF) continue;
+    const cel = {}; for (const it of l.it){ const c = colDe(it); const k = c && c.k; if (k) cel[k] = (cel[k] ? cel[k]+" " : "") + it.s; }
+    const dh = [...l.t.matchAll(RX_DH)];
+    const ch = (cel.chapa || l.t).match(/(\d{2,4})\s*[xX]\s*(\d{2,4})/);
+    const op = mOF[1]; const cm = op.split("/")[1].match(/\d+/);
+    const ent = cel.entrega ? isoBR(cel.entrega) : (()=>{ const s = l.t.replace(RX_DH, ""); return isoBR(s); })();
+    itens.push({op, codigo: cm ? String(Number(cm[0])) : "", descricao: txt(cel.descricao||""), cliente: txt(cel.cliente||""), entrega: ent,
+      chLarg: ch ? Number(ch[1]) : null, chComp: ch ? Number(ch[2]) : null, quantidade: num((cel.quantidade||"").replace(/[^\d.,]/g,"")) || 0,
+      tbInicio: dh[0] ? isoBR(dh[0][1])+" "+dh[0][2] : null, tbFim: dh[1] ? isoBR(dh[1][1])+" "+dh[1][2] : null,
+      cores: (cel.cores||"").split(/\s{2,}|\s*[\/;|]\s*/).map(s=>s.trim()).filter(Boolean)});
+  }
+  itens.sort((a,b)=>String(a.tbInicio||"9").localeCompare(String(b.tbInicio||"9")));
+  return {maq, itens, cabecalho: cols.map(c=>c.s+(c.k?"→"+c.k:"")).join(" | ")};
+}
+async function importarPdf(file){
+  const log = document.getElementById("log"); const say = s => { log.textContent += s+"\n"; log.scrollTop=1e9; toast(s); };
+  log.textContent = ""; log.hidden = false; document.getElementById("mdl").hidden = false;
+  try {
+    say("Lendo "+file.name+"…");
+    const r = lerPdfTrimbox(await linhasPdf(await file.arrayBuffer()));
+    if (!r.itens.length) throw new Error("não encontrei nenhuma OF no PDF. Colunas lidas: "+(r.cabecalho||"nenhuma"));
+    const cod = r.maq; const seen = {};
+    const novos = r.itens.map((x,i)=>{ let id = idSafe(cod+"__"+x.op); if (seen[id]) id += "__"+(++seen[id]); else seen[id]=1;
+      return {id, maquina:cod, op:x.op, codigo:x.codigo, descricao:x.descricao, cliente:x.cliente, entrega:x.entrega, modelo:"", onda:"", cxComp:null, cxLarg:null, cxAlt:null,
+        chLarg:x.chLarg, chComp:x.chComp, quantidade:x.quantidade, cores:x.cores, linha:i+1, desenhoLink:"", tbInicio:x.tbInicio, tbFim:x.tbFim, origem:"pdf"}; });
+    say(`Máquina ${cod}: ${novos.length} ordens no PDF.`);
+    const ids = novos.map(p=>p.id); const travasNovas = Object.fromEntries(ids.map((id,i)=>[id,i]));
+    if (!db){ S.pedidos = S.pedidos.filter(p=>p.maquina!==cod).concat(novos); S.ordem[cod] = ids; S.travas[cod] = travasNovas; saveLocal(); render(); }
+    else {
+      const velhos = S.pedidos.filter(p=>p.maquina===cod && !ids.includes(p.id)).map(p=>p.id);
+      const ref = db.collection("pedidos"); if (velhos.length) await ref.deleteMany(velhos); await ref.setMany(novos.map(p=>[p.id,p]));
+      await db.doc("ordem/"+idSafe(cod)).set({maquina:cod, ids, travas:travasNovas, em:new Date().toISOString()});
+      await db.doc("config/importacao").set({em:new Date().toISOString(), arquivo:file.name, maquinas:Object.keys(S.maquinas).length, dias:S.calendario.length, pedidos:S.pedidos.filter(p=>p.maquina!==cod).length+novos.length});
+      db.refresh();
+    }
+    say(`Pronto: ${novos.length} ordens da ${cod} entraram como Programadas, na sequência do TrimBox.`);
+    setTimeout(()=>{ document.getElementById("mdl").hidden = true; }, 1500);
+  } catch(e){ const m = "Não foi possível ler o PDF: "+(e && (e.message||e)); log.textContent += m+"\n"; toast(m, true); }
+}
+
 /* ---------- telas ---------- */
 const app = document.getElementById("app");
 const maqList = () => Object.values(S.maquinas).sort((a,b)=>a.cod.localeCompare(b.cod));
@@ -900,7 +973,7 @@ const firstDay = () => { const t = todayISO(); const d = S.calendario.filter(x=>
 const ICO_REF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
 let busy = false, temArquivo = false;
 const atualizarBtn = (home) => home
-  ? (canEdit ? `<div class="upd">${temArquivo?`<button class="linkbtn" data-act="trocar">Trocar arquivo</button>`:""}<button class="primary btn-ico ${busy?"spin":""}" data-act="atualizar" ${busy?"disabled":""}>${ICO_REF}${busy?"Atualizando…":"Atualizar"}</button><button class="btn-ico" data-act="gravarPlanilha" ${busy||!S.pedidos.length?"disabled":""} title="Grava Situação, Seq., horários, produzido e saldo nas colunas do sistema da planilha">${ICO_SAVE}Gravar na planilha</button></div>` : "")
+  ? (canEdit ? `<div class="upd">${temArquivo?`<button class="linkbtn" data-act="trocar">Trocar arquivo</button>`:""}<button class="primary btn-ico ${busy?"spin":""}" data-act="atualizar" ${busy?"disabled":""}>${ICO_REF}${busy?"Atualizando…":"Atualizar"}</button>${window.APP_TESTE?`<button class="btn-ico" data-act="importarPdf">${ICO_REF}Importar PDF do TrimBox</button>`:""}<button class="btn-ico" data-act="gravarPlanilha" ${busy||!S.pedidos.length?"disabled":""} title="Grava Situação, Seq., horários, produzido e saldo nas colunas do sistema da planilha">${ICO_SAVE}Gravar na planilha</button></div>` : "")
   : `<div class="upd"><button class="btn-ico" data-act="relatorio">${ICO_PRT}Imprimir programação</button></div>`;
 
 /* ---------- relatório PDF da programação por máquina e período ---------- */
@@ -1664,6 +1737,7 @@ app.addEventListener("click", async e => {
   if (b.dataset.cdia!==undefined){ UI.cDia = (UI.cDia===b.dataset.cdia ? "" : b.dataset.cdia); render(); return; }
   if (b.dataset.cmes){ const [y,m]=(UI.cMes||todayISO().slice(0,7)).split("-").map(Number); const d=new Date(y, m-1+Number(b.dataset.cmes), 1); UI.cMes=d.getFullYear()+"-"+pad(d.getMonth()+1); render(); return; }
   if (b.dataset.act==="detalhes"){ UI.det=!UI.det; render(); return; }
+  if (b.dataset.act==="importarPdf"){ document.getElementById("pdfIn").click(); return; }
   if (b.dataset.act==="atualizar"){ atualizar(false); return; }
   if (b.dataset.act==="gravarPlanilha"){ gravarNaPlanilha(); return; }
   if (b.dataset.act==="trocar"){ atualizar(true); return; }
@@ -1747,6 +1821,7 @@ document.getElementById("pick").onclick = () => document.getElementById("fileIn"
 document.getElementById("closeM").onclick = () => { document.getElementById("mdl").hidden=true; };
 document.getElementById("mdl").addEventListener("click", e => { if (e.target.id==="mdl") e.currentTarget.hidden=true; });
 document.addEventListener("keydown", e => { if (e.key==="Escape"){ document.getElementById("rel").hidden = true; const v=document.getElementById("viewer"); if (!v.hidden){ v.hidden=true; return; } document.getElementById("mdl").hidden=true; if (!document.getElementById("det").hidden) fecharOP(); } });
+document.getElementById("pdfIn").onchange = e => { const f=e.target.files[0]; if (f) importarPdf(f); e.target.value=""; };
 document.getElementById("fileIn").onchange = e => { const f=e.target.files[0]; if (f) importar(f); e.target.value=""; };
 window.addEventListener("hashchange", render);
 /* arrastar e soltar na fila */
