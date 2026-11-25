@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack</title>
-<script>window.APP_VERSAO="20261125163630";</script>
+<script>window.APP_VERSAO="20261125202304";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -1127,8 +1127,9 @@ async function gerarRelatorio(){
   const cod = document.getElementById("rMaq").value; let a = document.getElementById("rIni").value, b = document.getElementById("rFim").value || a;
   if (!a){ say("Escolha a data inicial.", true); return; } if (b < a) [a, b] = [b, a];
   const m = S.maquinas[cod]; const ag = agendar(cod, UI.inicio || firstDay());
-  const dias = ag.dias.filter(d=>d.data>=a && d.data<=b);
-  if (!dias.length){ say(`Não há programação da ${cod} entre ${dBR(a)} e ${dBR(b)}.`, true); return; }
+  /* só o que está programado (OP com cadeado); OPs "Não programado" ficam fora do relatório */
+  const dias = ag.dias.filter(d=>d.data>=a && d.data<=b).map(d=>({...d, blocks:d.blocks.filter(x=>!x.q || travada(cod, x.q.p.id))})).filter(d=>d.blocks.some(x=>x.t==="prod"));
+  if (!dias.length){ say(`Não há OPs programadas da ${cod} entre ${dBR(a)} e ${dBR(b)}. OPs "Não programado" não entram no relatório.`, true); return; }
   const { jsPDF } = window.jspdf; const doc = new jsPDF({orientation:"landscape", unit:"mm", format:"a4"});
   const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 10;
   const ORANGE = [238,108,38], DARK = [20,24,29], GREY = [91,103,116];
@@ -1187,7 +1188,7 @@ async function gerarRelatorio(){
   }
   // assinaturas
   if (y > H-30){ doc.addPage(); cab(); y = 34; }
-  doc.setFontSize(8); doc.setTextColor(...GREY); if ([...opsPer].some(id=>!travada(cod,id))) doc.text("* OP NÃO PROGRAMADA (sem cadeado): a posição ainda pode mudar.", M, y); y += 14;
+  doc.setFontSize(8); doc.setTextColor(...GREY); y += 14;
   doc.setDrawColor(150,158,166); [["Programação (PCP)", M],["Supervisor de produção", M+95],["Operador", M+190]].forEach(([t,x])=>{ doc.line(x, y, x+80, y); doc.text(t, x, y+4.5); });
   const n = doc.getNumberOfPages();
   for (let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(...GREY); doc.text(`Triapack · Chão de fábrica · ${m.cod}`, M, H-5); doc.text(`Página ${i} de ${n}`, W-M, H-5, {align:"right"}); }
