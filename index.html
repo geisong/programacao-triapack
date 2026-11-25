@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Programação Triapack</title>
-<script>window.APP_VERSAO="20261125160452";</script>
+<script>window.APP_VERSAO="20261125161318";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -169,6 +169,15 @@ nav.tabs a[aria-current="page"]{background:rgba(238,108,38,.16);color:#ff9a5c;bo
 .pn-bar{height:4px;background:#1e2a36;border-radius:3px;margin-top:7px;overflow:hidden}.pn-bar i{display:block;height:100%;background:#2fbf71}
 .pn-nada{color:#5d6d80}
 .pn-foot{color:#5d6d80;font-size:.75em;text-align:right;padding:6px 2px 2px}
+.pn-btns{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px}
+.pn-b{background:#111821;color:#c9d4e0;border:1px solid #2c3a49;border-radius:8px;padding:7px 12px;font:700 12.5px system-ui,sans-serif;letter-spacing:.04em;cursor:pointer}
+.pn-b:hover{border-color:var(--pnamb);color:var(--pnamb)}.pn-b[aria-pressed="true"]{background:var(--pnamb);border-color:var(--pnamb);color:#0b0f14}
+.pn-head.pn-sq,.pn-row.pn-sq{grid-template-columns:56px minmax(150px,1.1fr) minmax(200px,2.4fr) 90px 96px 96px 170px}
+.pn-n{font:800 1.3em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#6f8196;text-align:center}
+.pn-row.atual{background:#15212d;border-left-color:#2fbf71}.pn-row.atual .pn-n{color:#4ddc8c}
+.pn-q{font:700 1.05em ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#fff;text-align:right}.pn-q small{display:inline;margin-left:3px}
+.pn-pill.bad{background:rgba(240,82,82,.16);color:#ff8a8a}
+@media (max-width:900px){.pn-row.pn-sq{grid-template-columns:auto 1fr auto}.pn-row.pn-sq .pn-n{grid-column:1;grid-row:1}.pn-row.pn-sq .pn-op{grid-column:2;grid-row:1}.pn-row.pn-sq .pn-st{grid-column:3;grid-row:1}.pn-row.pn-sq .pn-prod{grid-column:1/-1}.pn-row.pn-sq .pn-q{grid-column:1/-1;text-align:left}.pn-row.pn-sq .pn-h{grid-column:auto}.pn-btns{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.pn-row.pn-sq .pn-n{text-align:left;font-size:1.1em}.pn-row.pn-sq .pn-op{min-width:0;overflow:hidden}.pn-row.pn-sq .pn-op b{font-size:.92em}.pn-row.pn-sq .pn-pill{font-size:.62em;padding:5px 7px;letter-spacing:.06em}.pn-b{flex:0 0 auto}}
 .pn-h2{font-size:15px;margin:0 0 10px}
 @media (max-width:900px){.pn{padding:14px 12px 8px}.pn-head{display:none}.pn-row{grid-template-columns:1fr 1fr;gap:8px 12px}.pn-maq{grid-column:1}.pn-st{grid-column:2;justify-self:end}.pn-op,.pn-prod{grid-column:1/-1}
  .pn-h,.pn-nx{position:relative;padding-top:15px}.pn-h::before,.pn-nx::before{content:attr(data-l);position:absolute;top:0;left:0;font-size:.66em;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#6f8196}.pn-nx{grid-column:1/-1}.pn-row.vazio .pn-op,.pn-row.vazio .pn-h,.pn-row.vazio .pn-nx{display:none}.pn-row.vazio .pn-prod{grid-column:1/-1}.pn-clock{font-size:1.5em}.pn-fs{display:none}}
@@ -1784,7 +1793,22 @@ function painelMaq(cod){
   return {cod, st, atual, inf, pct, prox, proxInf: prox ? info[prox.id] : null};
 }
 const pnHora = x => !x || x.h==null ? `<span class="pn-t">--:--</span>` : `${x.data!==todayISO()?`<small>${dShort(x.data)}</small>`:""}<span class="pn-t">${hm(x.h)}</span>`;
+function painelSeq(cod){
+  const agora = new Date(), hoje = todayISO(), nm = agora.getHours()*60 + agora.getMinutes();
+  const ag = agendar(cod, firstDay()); const info = ag.info || {}; const now = pnAbs(hoje, nm);
+  const pm = painelMaq(cod); const curId = pm.atual && (pm.st==="prod"||pm.st==="setup"||pm.st==="espera") ? pm.atual.id : null;
+  const rows = ag.seq.map(q=>{ const inf = info[q.p.id]; const a = inf && inf.ini ? pnAbs(inf.ini.data, inf.ini.h) : null, b = inf && inf.fim ? pnAbs(inf.fim.data, inf.fim.h) : null;
+    let st = q.p.id===curId ? pm.st : (b!=null && b <= now) ? "feitaPrev" : a==null ? "semdata" : "prog";
+    return {q, inf, st, b}; });
+  const vis = rows.filter(r=>r.st!=="feitaPrev");
+  const prox = vis.find(r=>r.st==="prog"); if (prox && !curId) prox.st = "proxima"; else if (prox) prox.st = "proxima";
+  return {pm, rows:vis, passadas: rows.length - vis.length};
+}
+const PN_SQ = {prod:["EM PRODUÇÃO","ok"], setup:["SETUP","warn"], espera:["AGUARD. IMPRESSORA","warn"], proxima:["PRÓXIMA","info"], prog:["PROGRAMADA","mute"], semdata:["SEM DATA","bad"]};
 function viewPainel(){
+  const sel = UI.pnMaq && S.maquinas[UI.pnMaq] ? UI.pnMaq : "";
+  const botoes = `<div class="pn-btns" role="group" aria-label="Máquina">${[["","Todas as máquinas"]].concat(maqList().map(m=>[m.cod,m.cod])).map(([c,l])=>`<button class="pn-b" data-pnmaq="${esc(c)}" aria-pressed="${sel===c}">${esc(l)}</button>`).join("")}</div>`;
+  if (sel) return viewPainelMaq(sel, botoes);
   const ms = maqList(); const agora = new Date();
   const linhas = ms.map(m=>{ const r = painelMaq(m.cod); const [lab, cls] = PN_ST[r.st] || PN_ST.parada; const p = r.atual;
     return `<div class="pn-row${p||r.prox?"":" vazio"}">
@@ -1799,9 +1823,31 @@ function viewPainel(){
   return `<section class="pn" id="painel">
     <div class="pn-top"><div><span class="pn-tit">PAINEL DA PRODUÇÃO</span><span class="pn-sub">Triapack · ${esc(dow(todayISO()))} ${dBR(todayISO())}</span></div>
       <div class="pn-dir"><span class="pn-clock" id="pnClock">${pad(agora.getHours())}:${pad(agora.getMinutes())}<small>:${pad(agora.getSeconds())}</small></span><button class="pn-fs" data-act="pnFull" title="Tela cheia (para TV)">⛶ Tela cheia</button></div></div>
-    <div class="pn-head"><div>Máquina</div><div>Status</div><div>OP</div><div>Produto / cliente</div><div>Início</div><div>Término</div><div>Próxima</div></div>
+    ${botoes}<div class="pn-head"><div>Máquina</div><div>Status</div><div>OP</div><div>Produto / cliente</div><div>Início</div><div>Término</div><div>Próxima</div></div>
     ${linhas || `<div class="pn-row"><div class="pn-nada" style="grid-column:1/-1">Nenhuma máquina cadastrada.</div></div>`}
     <div class="pn-foot">Horários pela programação atual · atualiza sozinho a cada minuto</div>
+  </section>`;
+}
+function viewPainelMaq(cod, botoes){
+  const m = S.maquinas[cod]; const agora = new Date(); const {pm, rows, passadas} = painelSeq(cod);
+  const [lab, cls] = PN_ST[pm.st] || PN_ST.parada;
+  const linhas = rows.slice(0, 15).map(r=>{ const p = r.q.p; const [l2, c2] = PN_SQ[r.st] || PN_SQ.prog; const cur = r.st==="prod"||r.st==="setup"||r.st==="espera";
+    return `<div class="pn-row pn-sq${cur?" atual":""}">
+      <div class="pn-n" data-l="Seq">${r.q.n}</div>
+      <div class="pn-op" data-l="OP"><b>${esc(opN(p))}</b></div>
+      <div class="pn-prod" data-l="Produto"><span>${esc(p.descricao||"")}</span><small>${esc(p.cliente||"")}${(p.cores||[]).length?` · ${esc(p.cores.join(", "))}`:""}</small>${cur && pm.pct!=null?`<div class="pn-bar"><i style="width:${pm.pct.toFixed(1)}%"></i></div>`:""}</div>
+      <div class="pn-q" data-l="Qtd">${fmtN(saldo(p))}<small>cx</small></div>
+      <div class="pn-h" data-l="Início">${pnHora(r.inf && r.inf.ini)}</div>
+      <div class="pn-h" data-l="Término">${pnHora(r.inf && r.inf.fim)}</div>
+      <div class="pn-st" data-l="Status"><span class="pn-pill ${c2}">${r.st==="prod"?`<i class="pn-dot"></i>`:""}${l2}</span></div>
+    </div>`; }).join("");
+  return `<section class="pn" id="painel">
+    <div class="pn-top"><div><span class="pn-tit">${esc(cod)} · SEQUÊNCIA DE PRODUÇÃO</span><span class="pn-sub">${esc(m.nome||"")} · agora: ${lab.toLowerCase()} · ${esc(dow(todayISO()))} ${dBR(todayISO())}</span></div>
+      <div class="pn-dir"><span class="pn-clock" id="pnClock">${pad(agora.getHours())}:${pad(agora.getMinutes())}<small>:${pad(agora.getSeconds())}</small></span><button class="pn-fs" data-act="pnFull" title="Tela cheia (para TV)">⛶ Tela cheia</button></div></div>
+    ${botoes}
+    <div class="pn-head pn-sq"><div>Seq</div><div>OP</div><div>Produto / cliente</div><div>Qtd</div><div>Início</div><div>Término</div><div>Status</div></div>
+    ${linhas || `<div class="pn-row"><div class="pn-nada" style="grid-column:1/-1">Nenhuma OP programada nesta máquina.</div></div>`}
+    <div class="pn-foot">${rows.length>15?`+ ${rows.length-15} OPs depois destas · `:""}${passadas?`${passadas} OP(s) com término previsto antes de agora (aguardando apontamento) · `:""}Horários pela programação atual · atualiza sozinho a cada minuto</div>
   </section>`;
 }
 setInterval(()=>{ const c = document.getElementById("pnClock"); if (!c) return; const d = new Date(); c.innerHTML = `${pad(d.getHours())}:${pad(d.getMinutes())}<small>:${pad(d.getSeconds())}</small>`; if (d.getSeconds()===0) schedule(); }, 1000);
@@ -1903,6 +1949,7 @@ app.addEventListener("click", async e => {
   if (b.dataset.cdia!==undefined){ UI.cDia = (UI.cDia===b.dataset.cdia ? "" : b.dataset.cdia); render(); return; }
   if (b.dataset.cmes){ const [y,m]=(UI.cMes||todayISO().slice(0,7)).split("-").map(Number); const d=new Date(y, m-1+Number(b.dataset.cmes), 1); UI.cMes=d.getFullYear()+"-"+pad(d.getMonth()+1); render(); return; }
   if (b.dataset.act==="detalhes"){ UI.det=!UI.det; render(); return; }
+  if (b.dataset.pnmaq!=null){ UI.pnMaq = b.dataset.pnmaq; const fs = document.getElementById("painel") && document.getElementById("painel").classList.contains("cheia"); render(); if (fs){ const el = document.getElementById("painel"); if (el) el.classList.add("cheia"); } return; }
   if (b.dataset.act==="pnFull"){ const el = document.getElementById("painel"); if (!el) return; if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen().catch(()=>el.classList.toggle("cheia")); else el.classList.toggle("cheia"); return; }
   if (b.dataset.act==="importarPdf"){ const sel = document.getElementById("pdfMaq"); const v = sel.value;
     sel.innerHTML = `<option value="">Reconhecer pelo PDF</option>`+maqList().map(m=>`<option value="${esc(m.cod)}">${esc(m.cod)}${m.nome?" · "+esc(m.nome):""}</option>`).join(""); sel.value = v && S.maquinas[v] ? v : "";
