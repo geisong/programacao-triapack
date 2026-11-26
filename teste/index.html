@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261126120714";</script>
+<script>window.APP_VERSAO="20261126122304";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -473,7 +473,9 @@ body{touch-action:manipulation;overflow-x:hidden}
     <label class="fld"><span>Máquina do PDF</span><select id="pdfMaq"></select></label>
     <div class="controls">
       <input type="file" id="pdfIn" accept=".pdf,application/pdf" hidden>
-      <button class="primary" id="pdfPick">Escolher PDF</button>
+      <button class="primary" id="pdfPasta" hidden>Buscar da pasta (último)</button>
+      <button id="pdfPick">Escolher PDF</button>
+      <button class="linkbtn" id="pdfTrocaPasta" hidden>Trocar pasta</button>
       <button id="pdfClose">Fechar</button>
     </div>
     <div class="log" id="pdfLog" hidden></div>
@@ -1107,9 +1109,9 @@ function lerPdfTrimbox(linhas, escolhida){
   itens.sort((a,b)=>String(a.tbInicio||"9").localeCompare(String(b.tbInicio||"9")));
   return {maq, itens, cabecalho: cols.map(c=>c.s+(c.k?"→"+c.k:"")).join(" | ")};
 }
-async function importarPdf(file){
+async function importarPdf(file, opt={}){
   const log = document.getElementById("pdfLog"); const say = s => { log.textContent += s+"\n"; log.scrollTop=1e9; };
-  log.textContent = ""; log.hidden = false; document.getElementById("mdlPdf").hidden = false;
+  if (!opt.manter) log.textContent = ""; log.hidden = false; document.getElementById("mdlPdf").hidden = false;
   try {
     say("Lendo "+file.name+"…");
     const linhas = await linhasPdf(await file.arrayBuffer());
@@ -1131,9 +1133,50 @@ async function importarPdf(file){
       db.refresh();
     }
     say(`Pronto: ${novos.length} ordens da ${cod} entraram como Programadas, na sequência do TrimBox.`);
-    setTimeout(()=>{ document.getElementById("mdlPdf").hidden = true; }, 1800); toast(`PDF importado: ${novos.length} ordens da ${cod}.`);
-  } catch(e){ const m = "Não foi possível ler o PDF: "+(e && (e.message||e)); log.textContent += m+"\n"; toast(m, true); }
+    if (!opt.manter) setTimeout(()=>{ document.getElementById("mdlPdf").hidden = true; }, 1800); toast(`PDF importado: ${novos.length} ordens da ${cod}.`);
+    return cod;
+  } catch(e){ const m = "Não foi possível ler o PDF "+file.name+": "+(e && (e.message||e)); log.textContent += m+"\n"; toast(m, true); return null; }
 }
+
+/* ---------- buscar o PDF direto da pasta (Chrome/Edge no computador) ---------- */
+const PASTA_OK = typeof window.showDirectoryPicker === "function";
+const idbPasta = (modo, val) => new Promise((ok, err) => { try { const rq = indexedDB.open("triapack-pasta", 1);
+  rq.onupgradeneeded = () => rq.result.createObjectStore("h"); rq.onerror = () => err(rq.error);
+  rq.onsuccess = () => { try { const tx = rq.result.transaction("h", modo==="get"?"readonly":"readwrite"); const st = tx.objectStore("h");
+    const r = modo==="get" ? st.get("pasta") : modo==="del" ? st.delete("pasta") : st.put(val, "pasta"); r.onsuccess = () => ok(r.result); r.onerror = () => err(r.error); } catch(e){ err(e); } }; } catch(e){ err(e); } });
+/* data no nome do arquivo (24-11-2026, 24.11.26, 2026-11-24, 24112026); senão a data de modificação */
+function dataArquivo(nome, mod){
+  let m = nome.match(/(\d{4})[-_.](\d{1,2})[-_.](\d{1,2})/); if (m) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  m = nome.match(/(\d{1,2})[-_.](\d{1,2})[-_.](\d{2,4})/); if (m){ const a = m[3].length===2 ? "20"+m[3] : m[3]; return `${a}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`; }
+  m = nome.match(/(?:^|\D)(\d{2})(\d{2})(20\d{2})(?:\D|$)/); if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(mod); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+async function listarPdfs(dir, nivel, pre){ const out = [];
+  for await (const h of dir.values()){
+    if (h.kind==="file" && /\.pdf$/i.test(h.name)){ const f = await h.getFile(); out.push({f, caminho:pre+h.name, data:dataArquivo(h.name, f.lastModified)}); }
+    else if (h.kind==="directory" && nivel<2) out.push(...await listarPdfs(h, nivel+1, pre+h.name+"\\")); }
+  return out; }
+async function pegarPasta(trocar){
+  let h = null; if (!trocar) try { h = await idbPasta("get"); } catch(e){}
+  if (h){ let p = await h.queryPermission({mode:"read"}); if (p!=="granted") p = await h.requestPermission({mode:"read"}); if (p!=="granted") h = null; }
+  if (!h){ h = await window.showDirectoryPicker({id:"trimbox", mode:"read"}); try { await idbPasta("put", h); } catch(e){} }
+  return h; }
+/* importa o(s) PDF(s) da data mais recente; devolve as máquinas importadas */
+async function buscarDaPasta(trocar){
+  const log = document.getElementById("pdfLog"); log.textContent = ""; log.hidden = false; document.getElementById("mdlPdf").hidden = false;
+  const say = s => { log.textContent += s+"\n"; log.scrollTop=1e9; };
+  let dir; try { dir = await pegarPasta(trocar); } catch(e){ if (e && e.name==="AbortError"){ document.getElementById("mdlPdf").hidden = true; return null; } say("Não consegui abrir a pasta: "+(e.message||e)); return null; }
+  say("Pasta: "+dir.name);
+  const pdfs = await listarPdfs(dir, 0, ""); if (!pdfs.length){ say("Nenhum PDF nessa pasta. Use \"Trocar pasta\" para escolher a pasta das programações."); return null; }
+  const ult = pdfs.reduce((a,x)=>x.data>a?x.data:a, ""); const doDia = pdfs.filter(x=>x.data===ult).sort((a,b)=>b.f.lastModified-a.f.lastModified);
+  say(`${pdfs.length} PDF(s) na pasta. Última data: ${dBR(ult)} (${doDia.length} arquivo(s)).`);
+  let vistos = {}; try { vistos = JSON.parse(localStorage.getItem("triapack-pdf-vistos")||"{}"); } catch(e){}
+  const maqs = []; document.getElementById("pdfMaq").value = "";
+  for (const x of doDia){ const chave = x.caminho+"|"+x.f.size+"|"+x.f.lastModified;
+    if (vistos[chave] && S.maquinas[vistos[chave]] && S.pedidos.some(p=>p.maquina===vistos[chave] && p.origem==="pdf")){ say(`${x.caminho}: já importado (${vistos[chave]}), sem mudanças.`); maqs.push(vistos[chave]); continue; }
+    const cod = await importarPdf(x.f, {manter:true}); if (cod){ maqs.push(cod); vistos[chave] = cod; } }
+  try { localStorage.setItem("triapack-pdf-vistos", JSON.stringify(vistos)); } catch(e){}
+  return maqs; }
 
 /* ---------- telas ---------- */
 const app = document.getElementById("app");
@@ -1997,11 +2040,16 @@ app.addEventListener("click", async e => {
   if (b.dataset.act==="pnFull"){ const el = document.getElementById("painel"); if (!el) return; if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen().catch(()=>el.classList.toggle("cheia")); else el.classList.toggle("cheia"); return; }
   if (b.dataset.act==="importarPdf"){ const sel = document.getElementById("pdfMaq"); const v = sel.value;
     sel.innerHTML = `<option value="">Reconhecer pelo PDF</option>`+maqList().map(m=>`<option value="${esc(m.cod)}">${esc(m.cod)}${m.nome?" · "+esc(m.nome):""}</option>`).join(""); sel.value = v && S.maquinas[v] ? v : "";
-    const lg = document.getElementById("pdfLog"); lg.textContent = ""; lg.hidden = true; document.getElementById("mdlPdf").hidden = false; return; }
+    const lg = document.getElementById("pdfLog"); lg.textContent = ""; lg.hidden = true;
+    document.getElementById("pdfPasta").hidden = document.getElementById("pdfTrocaPasta").hidden = !PASTA_OK; document.getElementById("mdlPdf").hidden = false; return; }
   if (b.dataset.act==="atualizar"){ atualizar(false); return; }
   if (b.dataset.act==="gravarPlanilha"){ gravarNaPlanilha(); return; }
   if (b.dataset.act==="trocar"){ atualizar(true); return; }
-  if (b.dataset.act==="relatorio"){ abrirRelatorio(); return; }
+  if (b.dataset.act==="relatorio"){
+    if (window.APP_TESTE && PASTA_OK){ buscarDaPasta(false).then(async maqs=>{ if (maqs===null) return; if (maqs.length) UI.maq = maqs[0];
+      for (let i=0; i<30 && maqs.length && !S.pedidos.some(p=>p.maquina===maqs[0] && p.origem==="pdf" && p.tbInicio); i++) await new Promise(r=>setTimeout(r,100));
+      await new Promise(r=>setTimeout(r,300)); document.getElementById("mdlPdf").hidden = true; abrirRelatorio(); }); return; }
+    abrirRelatorio(); return; }
   if (b.dataset.maq){ UI.maq=b.dataset.maq; saveUI(); location.hash = "#sequencia/"+encodeURIComponent(b.dataset.maq); return; }
   if (b.dataset.act==="auto"){ salvarOrdem(UI.maq, null); return; }
   if (b.dataset.lock){ alternarTrava(UI.maq, b.dataset.lock); return; }
@@ -2086,6 +2134,8 @@ document.getElementById("closeM").onclick = () => { document.getElementById("mdl
 document.getElementById("mdl").addEventListener("click", e => { if (e.target.id==="mdl") e.currentTarget.hidden=true; });
 document.addEventListener("keydown", e => { if (e.key==="Escape"){ document.getElementById("rel").hidden = true; const v=document.getElementById("viewer"); if (!v.hidden){ v.hidden=true; return; } document.getElementById("mdl").hidden=true; if (!document.getElementById("det").hidden) fecharOP(); } });
 document.getElementById("pdfPick").onclick = () => document.getElementById("pdfIn").click();
+document.getElementById("pdfPasta").onclick = () => buscarDaPasta(false).then(m=>{ if (m && m.length) setTimeout(()=>{ document.getElementById("mdlPdf").hidden = true; }, 1800); });
+document.getElementById("pdfTrocaPasta").onclick = () => buscarDaPasta(true).then(m=>{ if (m && m.length) setTimeout(()=>{ document.getElementById("mdlPdf").hidden = true; }, 1800); });
 document.getElementById("pdfClose").onclick = () => { document.getElementById("mdlPdf").hidden = true; };
 document.getElementById("pdfIn").onchange = e => { const f=e.target.files[0]; if (f) importarPdf(f); e.target.value=""; };
 document.getElementById("fileIn").onchange = e => { const f=e.target.files[0]; if (f) importar(f); e.target.value=""; };
