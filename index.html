@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack</title>
-<script>window.APP_VERSAO="20261126140918";</script>
+<script>window.APP_VERSAO="20261126162505";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -255,7 +255,7 @@ footer.foot{padding-block:18px 28px;color:var(--muted);font-size:12px;display:fl
 .feitos ul{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:6px}
 .feitos li{display:flex;justify-content:space-between;gap:8px;align-items:center;font-size:13px}
 @media (max-width:640px){.fila-l li{flex-wrap:wrap}.fila-l .mv{margin-left:auto;flex-wrap:wrap;justify-content:flex-end}}
-@media (pointer:coarse), (max-width:640px){[data-act="atualizar"],[data-act="trocar"],[data-act="gravarPlanilha"]{display:none!important}}
+@media (pointer:coarse), (max-width:640px){[data-act="gravarPlanilha"]{display:none!important}}
 .grp-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
 .prod-l{list-style:none;margin:0;padding:0}
 .prod-l li{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
@@ -457,6 +457,7 @@ body{touch-action:manipulation;overflow-x:hidden}
       <li>Abra a pasta <span class="mono">C:\Users\Windows\Desktop\Arquivos Trimbox\Programação</span>.</li>
       <li>Selecione <span class="mono">PROGRAMACAO_TRIAPACK.xlsx</span>. Você também pode arrastar a planilha do Explorador de Arquivos para dentro desta página.</li>
     </ol>
+    <p class="sub" style="margin:0"><b>No celular:</b> toque em Escolher planilha e selecione a PROGRAMACAO_TRIAPACK.xlsx onde ela estiver salva (OneDrive, Google Drive, Arquivos ou anexo do WhatsApp/e-mail).</p>
     <p class="sub" style="margin:0">O sistema lê as abas Maquinas, Calendário, CORES e uma aba por máquina (FFG1228, DG2504, COL SEMIA, COL 1226). Pedidos que saíram da planilha somem da programação; os marcados como produzidos continuam marcados.</p>
     <div class="controls">
       <input type="file" id="fileIn" accept=".xlsx,.xlsm,.xls" hidden>
