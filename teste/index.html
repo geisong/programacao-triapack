@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261126170540";</script>
+<script>window.APP_VERSAO="20261126171720";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -521,7 +521,7 @@ body{touch-action:manipulation;overflow-x:hidden}
 <script>
 (() => {
 "use strict";
-const S = { maquinas:{}, calendario:[], pedidos:[], apont:{}, hist:{}, ordem:{}, travas:{}, inicioMaq:{}, paradas:{}, imp:null, loaded:{m:false,c:false,p:false} };
+const S = { maquinas:{}, calendario:[], pedidos:[], apont:{}, hist:{}, prodMov:{}, ordem:{}, travas:{}, inicioMaq:{}, paradas:{}, imp:null, loaded:{m:false,c:false,p:false} };
 let db = null, canEdit = false, canWrite = true, dbState = "loading", local = false;
 const LKEY = "triapack-dados";
 const saveLocal = () => { try { localStorage.setItem(LKEY, JSON.stringify({maquinas:S.maquinas,calendario:S.calendario,pedidos:S.pedidos,apont:S.apont,ordem:S.ordem,travas:S.travas,imp:S.imp})); } catch(e){} };
@@ -997,7 +997,7 @@ async function importar(file){
         const ntv = Object.fromEntries(Object.entries(tv).filter(([k])=>ids.has(k))), nord = ord.filter(k=>ids.has(k));
         if (nord.length!==ord.length || Object.keys(ntv).length!==Object.keys(tv).length){
           if (nord.length || Object.keys(ntv).length) await db.collection("ordem").doc(d.id).set({...v, ids:nord, travas:ntv, em:new Date().toISOString()}); else await db.collection("ordem").doc(d.id).delete(); } }
-      const aps = await db.collection("apontamentos").get(); const orfD = aps.docs.filter(d=>!d.id.startsWith("hist__") && !ids.has(d.id)); const orf = orfD.map(d=>d.id);
+      const aps = await db.collection("apontamentos").get(); const orfD = aps.docs.filter(d=>!d.id.startsWith("hist__") && !d.id.startsWith("prod__") && !ids.has(d.id)); const orf = orfD.map(d=>d.id);
       /* guarda o histórico de produção (para os Indicadores) antes de apagar o apontamento */
       for (const d of orfD){ const v = d.data()||{}; if (!(v.parciais||[]).length) continue; const hid = "hist__"+d.id+"__"+Date.now();
         await db.collection("apontamentos").doc(hid).set({maquina:v.maquina, op:d.id, parciais:v.parciais, arquivado:new Date().toISOString()}); }
@@ -1292,7 +1292,7 @@ const idb = (mode, fn) => new Promise((res, rej) => { try { const rq = indexedDB
 const getHandle = () => idb("readonly", st => st.get("arquivo")).catch(()=>null);
 const setHandle = h => idb("readwrite", st => st.put(h, "arquivo")).catch(()=>null);
 /* grava a situação do sistema na planilha original, mexendo só nas colunas do sistema (preserva desenhos, estilos e fórmulas) */
-function planilhaComSituacao(buf, linhasPorAba, mover){
+function planilhaComSituacao(buf, linhasPorAba, mover, restaurar){
   const CFB = XLSX.CFB; const zip = CFB.read(new Uint8Array(buf), {type:"array"});
   const rd = p => { const e = CFB.find(zip, "/"+p); return e ? new TextDecoder().decode(e.content) : null; };
   const wr = (p, s) => { const e = CFB.find(zip, "/"+p); e.content = new TextEncoder().encode(s); e.size = e.content.length; };
@@ -1308,7 +1308,10 @@ function planilhaComSituacao(buf, linhasPorAba, mover){
   let total = 0;
   /* OPs produzidas: saem de todas as abas de máquina e entram uma vez na aba Produzido */
   mover = mover || {}; const capt = {}; let movidas = 0;
-  if (![...wbx.matchAll(/<sheet\b[^>]*>/g)].some(m=>N(unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""))==="PRODUZIDO")) mover = {}; // sem a aba Produzido, não tira nada
+  const pm = [...wbx.matchAll(/<sheet\b[^>]*>/g)].find(m=>N(unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""))==="PRODUZIDO");
+  if (!pm){ mover = {}; restaurar = []; } // sem a aba Produzido, não mexe em nada
+  restaurar = restaurar || []; const capVals = {}; const restaurados = new Set();
+  const SISTEMA = /^(SITUACAO|SEQ|INICIO PREV|FIM PREV|PRODUZIDO|SALDO)/;
   const ROWS_RE = /<row\b[^>]*?\br="(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g;
   const cellsRow = inner => [...(inner||"").matchAll(/<c\b[^>]*?r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)].map(c=>({col:colN(c[1]), xml:c[0]}));
   const txtCell = xml => { const t=(xml.match(/\bt="(\w+)"/)||[])[1]; if (t==="s"){ const v=(xml.match(/<v>(\d+)<\/v>/)||[])[1]; return v!=null?sst[+v]:""; } if (t==="inlineStr") return unesc([...xml.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(a=>a[1]).join("")); const v=(xml.match(/<v>([\s\S]*?)<\/v>/)||[])[1]; return v!=null?unesc(v):""; };
@@ -1320,6 +1323,12 @@ function planilhaComSituacao(buf, linhasPorAba, mover){
   const tirarLinhas = (x, del) => { if (!del.length) return x; const ds = new Set(del); const antes = r => del.filter(d=>d<r).length;
     return x.replace(/<sheetData>([\s\S]*?)<\/sheetData>/, (a, body) => "<sheetData>" + body.replace(ROWS_RE, (row, r) => { r = +r; if (ds.has(r)) return ""; const k = antes(r); if (!k) return row; const nr = r-k;
       return row.replace(/^<row\b[^>]*?\br="\d+"/, m=>m.replace(/\br="\d+"/, `r="${nr}"`)).replace(/(<c\b[^>]*?\br=")([A-Z]+)\d+"/g, (m,p1,c)=>`${p1}${c}${nr}"`); }) + "</sheetData>"); };
+  const valsDe = (cells, ks) => { const o = {}; for (const c of cells){ const k = ks[c.col]; if (!k || o[k]) continue;
+      if (/\bvm="/.test(c.xml)){ o[k] = {t:"img"}; continue; } const tv = txtCell(c.xml); if (tv==="") continue;
+      const t = (c.xml.match(/\bt="(\w+)"/)||[])[1]; o[k] = (!t || t==="n") && !isNaN(+tv) ? {t:"n", v:+tv} : {t:"s", v:tv}; } return o; };
+  let prodPath = pm && relT[(pm[0].match(/r:id="([^"]+)"/)||[])[1]]; if (prodPath) prodPath = prodPath.replace(/^\/?(xl\/)?/,"xl/");
+  const prodLinha = {}; if (prodPath && restaurar.length){ const px = rd(prodPath); if (px){ const L = linhas(px); const ks = chaves(L); const c = +Object.keys(ks).find(q=>ks[q]==="OP|");
+      if (c) for (const r of Object.keys(L).map(Number).filter(r=>r>=3)){ const cel = L[r].find(q=>q.col===c); const k = cel ? opK(txtCell(cel.xml)) : ""; if (k && !prodLinha[k]) prodLinha[k] = {r, cells:L[r], ks}; } } }
   for (const m of wbx.matchAll(/<sheet\b[^>]*>/g)){
     const nome = unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""); const rid = (m[0].match(/r:id="([^"]+)"/)||[])[1];
     const dados = linhasPorAba[N(nome)]; if (!dados) continue;
@@ -1353,6 +1362,22 @@ function planilhaComSituacao(buf, linhasPorAba, mover){
         if (/<mergeCells\b/.test(x)) x = x.replace(/<mergeCells count="(\d+)">/, (a,n)=>`<mergeCells count="${+n+novas.length}">${mc}`);
         else x = x.replace("</sheetData>", `</sheetData><mergeCells count="${novas.length}">${mc}</mergeCells>`); } }
     // linhas de pedidos
+    { // OPs desmarcadas: a linha volta para esta máquina (no fim da lista)
+      const volta = []; for (const d of restaurar) for (const e of (d.maqs||[])) if (N(e.maquina)===N(nome)) volta.push({d, e});
+      if (volta.length){ const L = linhas(x); const ks = chaves(L); const porK = {}; for (const [c,k] of Object.entries(ks)) if (!porK[k]) porK[k] = +c;
+        const cOP = porK["OP|"]; const tem = new Set(cOP ? Object.keys(L).map(Number).filter(r=>r>=3).map(r=>{ const c = L[r].find(q=>q.col===cOP); return c ? opK(txtCell(c.xml)) : ""; }) : []);
+        const comDados = Object.keys(L).map(Number).filter(r=>r>=3 && L[r].some(c=>txtCell(c.xml)!==""||/\bvm="/.test(c.xml)));
+        let ult = Math.max(2, ...comDados); const modelo = comDados.length ? L[Math.max(...comDados)] : (L[3]||[]); let novas = "";
+        for (const {d, e} of volta){ const k = d.opKey; if (tem.has(k)) { restaurados.add(k); continue; } const pl = prodLinha[k]; const nr = ++ult; const cs = [];
+          for (const [cS, kk] of Object.entries(ks)){ const c = +cS; if (c<1 || SISTEMA.test(kk)) continue; const v = e.vals && e.vals[kk];
+            const st = ((modelo.find(q=>q.col===c)||{}).xml||"").match(/\bs="(\d+)"/); const sA = st ? ` s="${st[1]}"` : "";
+            const doProd = pl && pl.cells.find(q=>pl.ks[q.col]===kk);
+            if ((v && v.t==="img") || (!v && !e.vals && doProd)){ if (doProd) cs.push({col:c, xml:doProd.xml.replace(/(<c\b[^>]*?\br=")[A-Z]+\d+"/, `$1${colL(c)}${nr}"`)}); continue; }
+            if (!v) continue;
+            cs.push({col:c, xml: v.t==="n" ? `<c r="${colL(c)}${nr}"${sA}><v>${v.v}</v></c>` : `<c r="${colL(c)}${nr}"${sA} t="inlineStr"><is><t>${esc(v.v)}</t></is></c>`}); }
+          if (cs.length){ novas += `<row r="${nr}">${cs.sort((a,b)=>a.col-b.col).map(c=>c.xml).join("")}</row>`; restaurados.add(k); } }
+        if (novas){ x = x.replace(/<sheetData>([\s\S]*?)<\/sheetData>/, (a, body) => "<sheetData>" + body.replace(ROWS_RE, (row, r) => +r > Math.max(2, ...comDados) ? "" : row) + novas + "</sheetData>").replace("<sheetData/>", `<sheetData>${novas}</sheetData>`);
+          x = x.replace(/<dimension ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/, (a,c1,r1,c2,r2)=>`<dimension ref="${c1}${r1}:${c2}${Math.max(+r2, ult)}"/>`); } } }
     const porOP = {}; { const L0 = linhas(x); const k0 = chaves(L0); const c0 = +Object.keys(k0).find(c=>k0[c]==="OP|");
       if (c0) for (const r of Object.keys(L0).map(Number).filter(r=>r>=3)){ const cel = L0[r].find(c=>c.col===c0); const k = cel ? opK(txtCell(cel.xml)) : ""; if (k && !porOP[k]) porOP[k] = r; } }
     for (const [linha, val] of Object.entries(dados)){
@@ -1368,16 +1393,17 @@ function planilhaComSituacao(buf, linhasPorAba, mover){
     if (Object.keys(mover).length){ // guarda e tira as linhas das OPs produzidas
       const L = linhas(x); const ks = chaves(L); const cOP = Object.keys(ks).find(c=>ks[c]==="OP|"); const del = [];
       if (cOP) for (const r of Object.keys(L).map(Number).filter(r=>r>=3).sort((a,b)=>a-b)){ const cel = L[r].find(c=>c.col===+cOP); const k = cel ? opK(txtCell(cel.xml)) : "";
-        if (k && mover[k]){ if (!capt[k]) capt[k] = {cells:L[r], ks}; del.push(r); } }
+        if (k && mover[k]){ if (!capt[k]) capt[k] = {cells:L[r], ks}; (capVals[k] = capVals[k] || {})[N(nome)] = valsDe(L[r], ks); del.push(r); } }
       x = tirarLinhas(x, del);
     }
     wr(path, x);
   }
   let temProd = false;
   { // aba Produzido: um registro por OP
-    const pm = [...wbx.matchAll(/<sheet\b[^>]*>/g)].find(m=>N(unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""))==="PRODUZIDO");
-    let path = pm && relT[(pm[0].match(/r:id="([^"]+)"/)||[])[1]]; if (path) path = path.replace(/^\/?(xl\/)?/,"xl/");
-    let x = path && rd(path); temProd = !!x;
+    const path = prodPath; let x = path && rd(path); temProd = !!x;
+    if (x && restaurados.size){ // tira da aba Produzido as OPs que voltaram para as máquinas
+      const del = Object.entries(prodLinha).filter(([k])=>restaurados.has(k)).map(([,v])=>v.r).sort((a,b)=>a-b);
+      if (del.length){ x = tirarLinhas(x, del); wr(path, x); } }
     if (x && Object.keys(capt).length){
       const L = linhas(x); const ks = chaves(L); const porK = {}; for (const [c,k] of Object.entries(ks)) if (!porK[k]) porK[k] = +c;
       const cOP = porK["OP|"]; const ja = new Set(cOP ? Object.keys(L).map(Number).filter(r=>r>=3).map(r=>{ const c = L[r].find(q=>q.col===cOP); return c ? opK(txtCell(c.xml)) : ""; }).filter(Boolean) : []);
@@ -1394,7 +1420,7 @@ function planilhaComSituacao(buf, linhasPorAba, mover){
         wr(path, x); }
     }
   }
-  return {bytes: CFB.write(zip, {type:"array", fileType:"zip", compression:true}), total, movidas, semAba: !temProd && Object.keys(mover).length > 0 };
+  return {bytes: CFB.write(zip, {type:"array", fileType:"zip", compression:true}), total, movidas, semAba: !temProd && Object.keys(mover).length > 0, capVals, restaurados:[...restaurados] };
 }
 
 const ICO_SAVE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>`;
@@ -1420,6 +1446,34 @@ function opsProduzidas(){ const g = {};
   for (const p of S.pedidos){ const a = S.apont[p.id]; if (!(a && a.feito)) continue; const k = opKey(p); if (!k) continue;
     const o = g[k] = g[k] || {maqs:[], em:a.em||""}; if (!o.maqs.includes(p.maquina)) o.maqs.push(p.maquina); if ((a.em||"") > o.em) o.em = a.em; }
   return g; }
+/* depois de devolver a OP às máquinas: volta o apontamento (desfaz o último), o cadeado e a posição de antes */
+async function voltarStatus(docs){
+  const hs = await db.collection("apontamentos").get();
+  for (const d of docs){
+    for (const e of (d.maqs||[])){ const a = e.apont; let dado = a || null;
+      if (a && a.feito){ const parciais = [...(a.parciais||[])]; const ult = parciais.pop(); const tot = Math.max(0,(Number(a.produzido)||0)-(ult?ult.qtd:0));
+        dado = {feito:false, em:new Date().toISOString(), maquina:e.maquina, pos:Number.isInteger(a.pos)?a.pos:0, produzido:tot, parciais, ...(parciais.length?{reprogramar:true}:{})};
+        if (!parciais.length && !tot) dado = null; }
+      if (dado) await db.collection("apontamentos").doc(e.id).set(dado); else await db.collection("apontamentos").doc(e.id).delete().catch(()=>{});
+      for (const h of hs.docs) if (h.id.startsWith("hist__"+e.id+"__")) await db.collection("apontamentos").doc(h.id).delete().catch(()=>{}); // não contar duas vezes nos Indicadores
+      const ref = db.doc("ordem/"+idSafe(e.maquina)); const g = await ref.get(); const v = g.exists ? {...g.data()} : {maquina:e.maquina, ids:[], travas:{}};
+      v.ids = [...(v.ids||[])]; v.travas = {...(v.travas||{})};
+      if (v.ids.length && e.ordemPos>=0 && !v.ids.includes(e.id)) v.ids.splice(Math.min(e.ordemPos, v.ids.length), 0, e.id);
+      if (e.trava!=null) v.travas[e.id] = e.trava;
+      v.em = new Date().toISOString(); await ref.set(v);
+    }
+    await db.collection("apontamentos").doc("prod__"+idSafe(d.opKey)).delete();
+  }
+  db.refresh();
+}
+async function desmarcarMovida(docId){
+  const d = S.prodMov[docId]; if (!d || !db) return;
+  const novo = {...d, estado:"restaurar", pedidoEm:new Date().toISOString()};
+  try { await db.collection("apontamentos").doc(docId).set(novo); } catch(e){ toast("Não foi possível desmarcar: "+(e.message||e), true); return; }
+  S.prodMov[docId] = novo; render();
+  if (canEdit && fsOK() && !matchMedia("(pointer:coarse)").matches) return gravarNaPlanilha();
+  toast(`OP ${d.op}: volta para as máquinas quando o programador clicar em Gravar na planilha no computador.`);
+}
 async function gravarNaPlanilha(){
   if (busy) return; if (!fsOK()) return toast("Para gravar na planilha, use o Chrome ou o Edge no computador.", true);
   busy = true; render();
@@ -1427,10 +1481,19 @@ async function gravarNaPlanilha(){
     let h = await getHandle(); if (!h) h = await escolherArquivo();
     let perm = await h.queryPermission({mode:"readwrite"}); if (perm!=="granted") perm = await h.requestPermission({mode:"readwrite"});
     if (perm!=="granted") throw Object.assign(new Error("Permissão para gravar não foi dada."), {name:"NotAllowedError"});
-    const file = await h.getFile(); const {bytes, total, movidas, semAba} = planilhaComSituacao(await file.arrayBuffer(), situacaoPorAba(), opsProduzidas());
+    const file = await h.getFile(); const mover = opsProduzidas(); const restaurar = Object.values(S.prodMov||{}).filter(d=>d && d.estado==="restaurar");
+    /* foto do estado de cada OP antes de sair das máquinas (para poder desmarcar depois) */
+    const foto = {}; for (const [k, mv] of Object.entries(mover)){ foto[k] = S.pedidos.filter(p=>opKey(p)===k).map(p=>({maquina:p.maquina, id:p.id, pedido:{...p}, apont:S.apont[p.id]||null,
+      trava: Object.prototype.hasOwnProperty.call(travas(p.maquina), p.id) ? travas(p.maquina)[p.id] : null, ordemPos:(S.ordem[p.maquina]||[]).indexOf(p.id)})); }
+    const {bytes, total, movidas, semAba, capVals, restaurados} = planilhaComSituacao(await file.arrayBuffer(), situacaoPorAba(), mover, restaurar);
     const w = await h.createWritable(); await w.write(bytes); await w.close();
-    if (movidas){ busy = false; await importar(new File([bytes], file.name)); busy = true; } // relê a planilha: as OPs produzidas saem das máquinas no app também
-    toast(`Planilha ${file.name} gravada: ${total} OP${total===1?"":"s"} atualizada${total===1?"":"s"}${movidas?`; ${movidas} OP${movidas===1?"":"s"} produzida${movidas===1?"":"s"} movida${movidas===1?"":"s"} para a aba Produzido`:""}${semAba?". Crie a aba Produzido para mover as OPs produzidas":""}.`);
+    const saiu = Object.keys(capVals||{});
+    if (db && saiu.length){ await db.collection("apontamentos").setMany(saiu.map(k=>{ const ms = foto[k]||[]; const p0 = (ms[0]||{}).pedido||{};
+      return ["prod__"+idSafe(k), {opKey:k, op:p0.op||"", descricao:p0.descricao||"", cliente:p0.cliente||"", quantidade:p0.quantidade||0, em:(mover[k]||{}).em||new Date().toISOString(), movidoEm:new Date().toISOString(), estado:"movido",
+        maqs: ms.map(e=>({...e, vals:(capVals[k]||{})[normName(e.maquina)]||null}))}]; })); }
+    if (saiu.length || restaurados.length){ busy = false; await importar(new File([bytes], file.name)); busy = true; } // relê a planilha
+    if (db && restaurados.length) await voltarStatus(restaurar.filter(d=>restaurados.includes(d.opKey)));
+    toast(`Planilha ${file.name} gravada: ${total} OP${total===1?"":"s"} atualizada${total===1?"":"s"}${movidas?`; ${movidas} OP${movidas===1?"":"s"} produzida${movidas===1?"":"s"} movida${movidas===1?"":"s"} para a aba Produzido`:""}${restaurados.length?`; ${restaurados.length} OP${restaurados.length===1?"":"s"} voltou${restaurados.length===1?"":"aram"} para as máquinas`:""}${semAba?". Crie a aba Produzido para mover as OPs produzidas":""}.`);
   }catch(e){
     if (e && e.name==="AbortError") {}
     else if (e && (e.name==="NoModificationAllowedError" || e.name==="InvalidStateError" || /lock|in use|being used/i.test(e.message||""))) toast("A planilha está aberta no Excel. Feche a planilha e clique de novo em Gravar na planilha.", true);
@@ -2050,7 +2113,7 @@ function viewInicio(){
     <a class="tile" href="#consulta"><span class="ic">${ICO_BUS}</span><span><b>Consulta da produção</b><small>${pend} OP${pend===1?"":"s"} programada${pend===1?"":"s"}</small></span></a>
     <a class="tile" href="#maquinas"><span class="ic">${ICO_MAQ}</span><span><b>Máquinas</b><small>${nm} máquina${nm===1?"":"s"} cadastrada${nm===1?"":"s"}</small></span></a>
     <button class="tile dark" data-act="relatorio"><span class="ic">${ICO_PRT}</span><span><b>Imprimir programação</b><small>PDF por máquina e data</small></span></button>
-    <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
+    <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length+Object.keys(S.prodMov||{}).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
     <a class="tile" href="#vendas"><span class="ic">${ICO_CHAT}</span><span><b>Vendas</b><small>Quando fica pronto um pedido</small></span></a>
     <a class="tile" href="#gantt"><span class="ic">${ICO_GANTT}</span><span><b>Gantt</b><small>Todas as máquinas, 24 horas</small></span></a>
     <a class="tile" href="#indicadores"><span class="ic">${ICO_DASH}</span><span><b>Indicadores</b><small>Caixas por dia e peças por hora</small></span></a>
@@ -2065,8 +2128,17 @@ function viewProduzidas(){
   const porMaq = maqList().map(m=>({m, itens:lista.filter(p=>p.maquina===m.cod)})).filter(g=>g.itens.length);
   return `<div class="head"><div><h1>Ordens produzidas</h1><p class="sub">${lista.length} OP${lista.length===1?"":"s"} marcada${lista.length===1?"":"s"} como produzida${lista.length===1?"":"s"}. Se marcou por engano, use <b>Desmarcar</b>: a OP volta para a mesma posição da sequência.</p></div></div>
   ${porMaq.length ? porMaq.map(g=>`<section class="panel" style="padding:0;margin-bottom:16px"><div class="grp-h"><b>${esc(g.m.cod)}</b> <span class="sub" style="margin:0">${esc(g.m.nome||"")} · ${g.itens.length} OP${g.itens.length===1?"":"s"}</span></div>
-    <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx em reprogramação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("")
-  : `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>`}`;
+    <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx em reprogramação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("") : ""}
+  ${movidasHtml()}
+  ${!porMaq.length && !Object.keys(S.prodMov||{}).length ? `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>` : ""}`;
+}
+function movidasHtml(){
+  const ds = Object.entries(S.prodMov||{}).map(([id,d])=>({id, ...d})).sort((a,b)=>String(b.movidoEm||b.em||"").localeCompare(String(a.movidoEm||a.em||"")));
+  if (!ds.length) return "";
+  const quando = iso => iso ? new Date(iso).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}) : "—";
+  return `<section class="panel" style="padding:0;margin-bottom:16px"><div class="grp-h"><b>Na aba Produzido da planilha</b> <span class="sub" style="margin:0">${ds.length} OP${ds.length===1?"":"s"} · já saíram das máquinas</span></div>
+    <ul class="prod-l">${ds.map(d=>`<li><div class="t"><b>OP ${esc(d.op||d.opKey)}</b> · ${esc(d.descricao||"")}<div class="sub" style="margin:2px 0 0">${esc(d.cliente||"")} · ${fmtN(d.quantidade||0)} cx · finalizada em ${quando(d.em)} · estava em ${esc((d.maqs||[]).map(e=>e.maquina+(e.trava!=null?" (Programado)":"")).join(", "))}${d.estado==="restaurar"?` · <b class="late">voltando para as máquinas: falta Gravar na planilha no computador</b>`:""}</div></div>
+      ${d.estado==="restaurar" ? "" : `<button class="small" data-desprod="${esc(d.id)}">Desmarcar</button>`}</li>`).join("")}</ul></section>`;
 }
 const ROUTES = {inicio:viewInicio, gantt:viewGantt, vendas:viewVendas, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
 function route(){ const h = location.hash.replace("#","").split("/")[0]; return ROUTES[h] ? h : "inicio"; }
@@ -2118,6 +2190,7 @@ app.addEventListener("click", async e => {
   if (b.dataset.maq){ UI.maq=b.dataset.maq; saveUI(); location.hash = "#sequencia/"+encodeURIComponent(b.dataset.maq); return; }
   if (b.dataset.act==="auto"){ salvarOrdem(UI.maq, null); return; }
   if (b.dataset.lock){ alternarTrava(UI.maq, b.dataset.lock); return; }
+  if (b.dataset.desprod){ b.disabled = true; desmarcarMovida(b.dataset.desprod); return; }
   if (b.dataset.semchapa){ toast("Aguardando chapa: esta OP só pode ser programada quando o Recebimento de chapa estiver Sim na planilha.", true); return; }
   if (b.dataset.act==="parada"){ const d = UI.inicio || firstDay(); document.getElementById("parM").textContent = "Máquina "+UI.maq+" · a programação é recalculada sem esse horário.";
     document.getElementById("parD").value = d; document.getElementById("parI").value = ""; document.getElementById("parF").value = ""; document.getElementById("parMot").value = ""; document.getElementById("parErr").hidden = true; document.getElementById("mdlPar").hidden = false; document.getElementById("parI").focus(); return; }
@@ -2357,7 +2430,7 @@ async function entrar(session){
   db.collection("calendario").onSnapshot(s=>{ S.calendario=s.docs.map(x=>x.data()); S.loaded.c=true; done(); }, err);
   db.collection("pedidos").onSnapshot(s=>{ S.pedidos=s.docs.map(x=>({...x.data(), id:x.id})); S.loaded.p=true; done(); }, err);
   db.collection("ordem").onSnapshot(s=>{ const o={}, t={}, im={}, pa={}; s.docs.forEach(x=>{ const v=x.data(); if (v && v.maquina){ o[v.maquina]=v.ids||[]; t[v.maquina]=v.travas||{}; if (v.inicio) im[v.maquina]=v.inicio; if ((v.paradas||[]).length) pa[v.maquina]=v.paradas; } }); S.ordem=o; S.travas=t; S.inicioMaq=im; S.paradas=pa; schedule(); }, ()=>{});
-  db.collection("apontamentos").onSnapshot(s=>{ const o={}, h={}; s.docs.forEach(x=>{ if (x.id.startsWith("hist__")) h[x.id]=x.data(); else o[x.id]=x.data(); }); S.apont=o; S.hist=h; schedule(); }, ()=>{});
+  db.collection("apontamentos").onSnapshot(s=>{ const o={}, h={}; const pm={}; s.docs.forEach(x=>{ if (x.id.startsWith("hist__")) h[x.id]=x.data(); else if (x.id.startsWith("prod__")) pm[x.id]=x.data(); else o[x.id]=x.data(); }); S.apont=o; S.hist=h; S.prodMov=pm; schedule(); }, ()=>{});
   db.doc("config/importacao").onSnapshot(s=>{ S.imp = s.exists ? s.data() : null; schedule(); }, ()=>{});
 }
 /* ---------- usuários (somente programador) ---------- */
