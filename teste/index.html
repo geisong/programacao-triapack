@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261126162505";</script>
+<script>window.APP_VERSAO="20261126164642";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -1275,10 +1275,6 @@ async function gerarRelatorio(){
     });
     y = doc.lastAutoTable.finalY + 8;
   }
-  // assinaturas
-  if (y > H-30){ doc.addPage(); cab(); y = 34; }
-  doc.setFontSize(8); doc.setTextColor(...GREY); y += 14;
-  doc.setDrawColor(150,158,166); [["Programação (PCP)", M],["Supervisor de produção", M+95],["Operador", M+190]].forEach(([t,x])=>{ doc.line(x, y, x+80, y); doc.text(t, x, y+4.5); });
   const n = doc.getNumberOfPages();
   for (let i=1;i<=n;i++){ doc.setPage(i); doc.setFontSize(7.5); doc.setTextColor(...GREY); doc.text(`Triapack · Chão de fábrica · ${m.cod}`, M, H-5); doc.text(`Página ${i} de ${n}`, W-M, H-5, {align:"right"}); }
   const nome = `Programacao_${idSafe(m.cod)}_${a}${b!==a?"_a_"+b:""}.pdf`;
