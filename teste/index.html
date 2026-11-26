@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261125202304";</script>
+<script>window.APP_VERSAO="20261126094726";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -1350,8 +1350,8 @@ function emptyState(){
   return `<div class="panel empty"><h2>Nenhum pedido carregado</h2><p class="sub">A programação vem da planilha <span class="mono">PROGRAMACAO_TRIAPACK.xlsx</span>. ${canEdit?"Volte ao <b>Início</b> e clique em <b>Atualizar</b> para carregar.":"Peça ao programador para atualizar."}</p>${atualizarBtn()}</div>`;
 }
 
-function mqBtn(m, attrs, extra){
-  const pend = S.pedidos.filter(p=>p.maquina===m.cod&&!(S.apont[p.id]&&S.apont[p.id].feito));
+function mqBtn(m, attrs, extra, soProg){
+  const pend = S.pedidos.filter(p=>p.maquina===m.cod&&!(S.apont[p.id]&&S.apont[p.id].feito)&&(!soProg||travada(m.cod,p.id)));
   const cx = pend.reduce((t,p)=>t+saldo(p),0);
   return `<${attrs.tag} class="mq${pend.length?"":" vazio"}" ${attrs.a}><span class="mi">${ICO_MAQ}</span><span class="mt"><b>${esc(m.cod)}</b><small>${esc(m.nome||"")}</small><small class="cnt">${pend.length} OP${pend.length===1?"":"s"}${pend.length?` · ${fmtN(cx)} cx`:""}${extra||""}</small></span><span class="chev">›</span></${attrs.tag}>`;
 }
@@ -1487,7 +1487,8 @@ function viewConsulta(){
   if (!S.pedidos.length) return `<div class="head"><div><h1>Consulta da produção</h1><p class="sub">${impLine()}</p></div>${atualizarBtn()}</div>${statusBanner()}${emptyState()}`;
   consultaIdx = {};
   const all = [];
-  for (const m of ms){ const ag = agendar(m.cod, firstDay()); for (const q of ag.seq) all.push({p:q.p, n:q.n, inf:ag.info[q.p.id]}); }
+  /* Consulta mostra só o que está programado (OP com cadeado) */
+  for (const m of ms){ const ag = agendar(m.cod, firstDay()); for (const q of ag.seq) if (travada(m.cod, q.p.id)) all.push({p:q.p, n:q.n, inf:ag.info[q.p.id]}); }
   const done = S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).map(p=>({p, n:null, inf:null, done:true}));
   all.concat(done).forEach(x=>consultaIdx[x.p.id]=x);
   let list = all.concat(UI.showDone?done:[]);
@@ -1508,7 +1509,7 @@ function viewConsulta(){
   return `
   <div class="head"><div><h1>Consulta da produção</h1><p class="sub">${impLine()} · Clique na OP para ver todas as informações.</p></div>${atualizarBtn()}</div>
   ${statusBanner()}
-  <div class="mqs" role="group" aria-label="Máquina"><button class="mq todas" data-cmaq="" aria-pressed="${!UI.cMaq}"><span class="mi">${ICO_BUS}</span><span class="mt"><b>Todas as máquinas</b><small class="cnt">${S.pedidos.filter(p=>!(S.apont[p.id]&&S.apont[p.id].feito)).length} OPs</small></span></button>${ms.map(m=>mqBtn(m,{tag:"button", a:`data-cmaq="${esc(m.cod)}" aria-pressed="${UI.cMaq===m.cod}"`})).join("")}</div>
+  <div class="mqs" role="group" aria-label="Máquina"><button class="mq todas" data-cmaq="" aria-pressed="${!UI.cMaq}"><span class="mi">${ICO_BUS}</span><span class="mt"><b>Todas as máquinas</b><small class="cnt">${all.length} OPs</small></span></button>${ms.map(m=>mqBtn(m,{tag:"button", a:`data-cmaq="${esc(m.cod)}" aria-pressed="${UI.cMaq===m.cod}"`}, "", true)).join("")}</div>
   ${calConsulta(all.concat(done))}
   <div class="panel controls">
     <label class="f">Buscar<input type="search" id="q" value="${esc(UI.q)}" placeholder="OP, cliente, produto, cor…"></label>
@@ -1783,9 +1784,11 @@ function painelMaq(cod){
   const agora = new Date(), hoje = todayISO(), nm = agora.getHours()*60 + agora.getMinutes() + agora.getSeconds()/60;
   const ag = agendar(cod, firstDay()); const info = ag.info || {};
   const dia = ag.dias.find(d=>d.data===hoje);
-  const cur = dia ? dia.blocks.find(b=>b.a<=nm && nm<b.b) : null;
+  /* só o que está programado (cadeado) aparece no painel */
+  const prog = q => q && travada(cod, q.p.id);
+  let cur = dia ? dia.blocks.find(b=>b.a<=nm && nm<b.b) : null; if (cur && cur.q && !prog(cur.q)) cur = null;
   let st = cur ? cur.t : null, q = cur && cur.q ? cur.q : null;
-  const futuros = []; for (const d of ag.dias) for (const b of d.blocks) if ((b.t==="prod"||b.t==="setup") && b.q && pnAbs(d.data,b.a) > pnAbs(hoje,nm)) futuros.push({d:d.data, b});
+  const futuros = []; for (const d of ag.dias) for (const b of d.blocks) if ((b.t==="prod"||b.t==="setup") && prog(b.q) && pnAbs(d.data,b.a) > pnAbs(hoje,nm)) futuros.push({d:d.data, b});
   if (!st){ const cal = S.calendario.find(c=>c.data===hoje); const emTurno = cal && (cal.turnos||[]).some(t=>nm>=t.ini && nm<t.fim); st = emTurno || ag.dias.some(d=>d.data===hoje) ? "parada" : "fora"; if (futuros.length && st==="parada" && !emTurno) st = "fora"; }
   if (!q && st!=="parada" && futuros.length && (st==="limpeza"||st==="inicio"||st==="break")) q = futuros[0].b.q;
   const atual = q ? q.p : null;
@@ -1800,7 +1803,7 @@ function painelSeq(cod){
   const agora = new Date(), hoje = todayISO(), nm = agora.getHours()*60 + agora.getMinutes();
   const ag = agendar(cod, firstDay()); const info = ag.info || {}; const now = pnAbs(hoje, nm);
   const pm = painelMaq(cod); const curId = pm.atual && (pm.st==="prod"||pm.st==="setup"||pm.st==="espera") ? pm.atual.id : null;
-  const rows = ag.seq.map(q=>{ const inf = info[q.p.id]; const a = inf && inf.ini ? pnAbs(inf.ini.data, inf.ini.h) : null, b = inf && inf.fim ? pnAbs(inf.fim.data, inf.fim.h) : null;
+  const rows = ag.seq.filter(q=>travada(cod, q.p.id)).map(q=>{ const inf = info[q.p.id]; const a = inf && inf.ini ? pnAbs(inf.ini.data, inf.ini.h) : null, b = inf && inf.fim ? pnAbs(inf.fim.data, inf.fim.h) : null;
     let st = q.p.id===curId ? pm.st : (b!=null && b <= now) ? "feitaPrev" : a==null ? "semdata" : "prog";
     return {q, inf, st, b}; });
   const vis = rows.filter(r=>r.st!=="feitaPrev");
@@ -1893,12 +1896,12 @@ function viewIndicadores(){
 }
 
 function viewInicio(){
-  const pend = S.pedidos.filter(p=>!(S.apont[p.id]&&S.apont[p.id].feito)).length;
+  const pend = S.pedidos.filter(p=>!(S.apont[p.id]&&S.apont[p.id].feito)&&travada(p.maquina,p.id)).length;
   const nm = maqList().length;
   return `<div class="head"><div><h1>Início</h1><p class="sub">${S.pedidos.length ? impLine() : "Escolha o que deseja fazer."}</p></div>${atualizarBtn(true)}</div>${canEdit ? statusBanner() : ""}
   <div class="home">
     <a class="tile" href="#sequencia"><span class="ic">${ICO_SEQ}</span><span><b>Sequenciamento</b><small>Ordem de produção por máquina</small></span></a>
-    <a class="tile" href="#consulta"><span class="ic">${ICO_BUS}</span><span><b>Consulta da produção</b><small>${pend} OP${pend===1?"":"s"} a produzir</small></span></a>
+    <a class="tile" href="#consulta"><span class="ic">${ICO_BUS}</span><span><b>Consulta da produção</b><small>${pend} OP${pend===1?"":"s"} programada${pend===1?"":"s"}</small></span></a>
     <a class="tile" href="#maquinas"><span class="ic">${ICO_MAQ}</span><span><b>Máquinas</b><small>${nm} máquina${nm===1?"":"s"} cadastrada${nm===1?"":"s"}</small></span></a>
     <button class="tile dark" data-act="relatorio"><span class="ic">${ICO_PRT}</span><span><b>Imprimir programação</b><small>PDF por máquina e data</small></span></button>
     <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
