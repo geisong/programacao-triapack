@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261126164642";</script>
+<script>window.APP_VERSAO="20261126170540";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -1292,7 +1292,7 @@ const idb = (mode, fn) => new Promise((res, rej) => { try { const rq = indexedDB
 const getHandle = () => idb("readonly", st => st.get("arquivo")).catch(()=>null);
 const setHandle = h => idb("readwrite", st => st.put(h, "arquivo")).catch(()=>null);
 /* grava a situação do sistema na planilha original, mexendo só nas colunas do sistema (preserva desenhos, estilos e fórmulas) */
-function planilhaComSituacao(buf, linhasPorAba){
+function planilhaComSituacao(buf, linhasPorAba, mover){
   const CFB = XLSX.CFB; const zip = CFB.read(new Uint8Array(buf), {type:"array"});
   const rd = p => { const e = CFB.find(zip, "/"+p); return e ? new TextDecoder().decode(e.content) : null; };
   const wr = (p, s) => { const e = CFB.find(zip, "/"+p); e.content = new TextEncoder().encode(s); e.size = e.content.length; };
@@ -1306,6 +1306,20 @@ function planilhaComSituacao(buf, linhasPorAba){
   const colL = n => { let s=""; while(n>0){ const r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=(n-1-r)/26; } return s; };
   const COLS = [["SITUACAO","Situação (sistema)"],["SEQ","Seq."],["INICIO PREV","Início previsto"],["FIM PREV","Fim previsto"],["PRODUZIDO","Produzido"],["SALDO","Saldo"]];
   let total = 0;
+  /* OPs produzidas: saem de todas as abas de máquina e entram uma vez na aba Produzido */
+  mover = mover || {}; const capt = {}; let movidas = 0;
+  if (![...wbx.matchAll(/<sheet\b[^>]*>/g)].some(m=>N(unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""))==="PRODUZIDO")) mover = {}; // sem a aba Produzido, não tira nada
+  const ROWS_RE = /<row\b[^>]*?\br="(\d+)"[^>]*?(?:\/>|>([\s\S]*?)<\/row>)/g;
+  const cellsRow = inner => [...(inner||"").matchAll(/<c\b[^>]*?r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)].map(c=>({col:colN(c[1]), xml:c[0]}));
+  const txtCell = xml => { const t=(xml.match(/\bt="(\w+)"/)||[])[1]; if (t==="s"){ const v=(xml.match(/<v>(\d+)<\/v>/)||[])[1]; return v!=null?sst[+v]:""; } if (t==="inlineStr") return unesc([...xml.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(a=>a[1]).join("")); const v=(xml.match(/<v>([\s\S]*?)<\/v>/)||[])[1]; return v!=null?unesc(v):""; };
+  const linhas = x => { const o = {}; for (const m of x.matchAll(ROWS_RE)) o[+m[1]] = cellsRow(m[2]); return o; };
+  const chaves = L => { const r1 = L[1]||[], r2 = L[2]||[]; const t1 = {}, t2 = {}; r1.forEach(c=>t1[c.col]=N(txtCell(c.xml))); r2.forEach(c=>t2[c.col]=N(txtCell(c.xml)));
+    const max = Math.max(0, ...Object.keys(t1).map(Number), ...Object.keys(t2).map(Number)); const out = {}; let grp = "";
+    for (let c=1;c<=max;c++){ const a = t1[c]||"", b = t2[c]||""; if (a) grp = a; const k = (a || (b ? grp : "")) + "|" + b; if (k!=="|") out[c] = k; } return out; };
+  const opK = v => N(v==null?"":v).replace(/\s+/g,"");
+  const tirarLinhas = (x, del) => { if (!del.length) return x; const ds = new Set(del); const antes = r => del.filter(d=>d<r).length;
+    return x.replace(/<sheetData>([\s\S]*?)<\/sheetData>/, (a, body) => "<sheetData>" + body.replace(ROWS_RE, (row, r) => { r = +r; if (ds.has(r)) return ""; const k = antes(r); if (!k) return row; const nr = r-k;
+      return row.replace(/^<row\b[^>]*?\br="\d+"/, m=>m.replace(/\br="\d+"/, `r="${nr}"`)).replace(/(<c\b[^>]*?\br=")([A-Z]+)\d+"/g, (m,p1,c)=>`${p1}${c}${nr}"`); }) + "</sheetData>"); };
   for (const m of wbx.matchAll(/<sheet\b[^>]*>/g)){
     const nome = unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""); const rid = (m[0].match(/r:id="([^"]+)"/)||[])[1];
     const dados = linhasPorAba[N(nome)]; if (!dados) continue;
@@ -1339,8 +1353,10 @@ function planilhaComSituacao(buf, linhasPorAba){
         if (/<mergeCells\b/.test(x)) x = x.replace(/<mergeCells count="(\d+)">/, (a,n)=>`<mergeCells count="${+n+novas.length}">${mc}`);
         else x = x.replace("</sheetData>", `</sheetData><mergeCells count="${novas.length}">${mc}</mergeCells>`); } }
     // linhas de pedidos
+    const porOP = {}; { const L0 = linhas(x); const k0 = chaves(L0); const c0 = +Object.keys(k0).find(c=>k0[c]==="OP|");
+      if (c0) for (const r of Object.keys(L0).map(Number).filter(r=>r>=3)){ const cel = L0[r].find(c=>c.col===c0); const k = cel ? opK(txtCell(cel.xml)) : ""; if (k && !porOP[k]) porOP[k] = r; } }
     for (const [linha, val] of Object.entries(dados)){
-      const r = +linha; const rw = getRow(r); let cs = rw ? cellsOf(rw.inner) : [];
+      const r = val.OPK ? porOP[val.OPK] : +linha; if (!r) continue; /* acha a linha pelo nº da OP (as linhas mudam quando OPs vão para Produzido) */ const rw = getRow(r); let cs = rw ? cellsOf(rw.inner) : [];
       const sA = ((cs.find(c=>c.col===1)||cs[0]||{}).xml||"").match(/\bs="(\d+)"/); const sD = sA ? ` s="${sA[1]}"` : "";
       for (const [key] of COLS){ const c = pos[key]; const v = val[key]; const ref = colL(c)+r;
         const ant = cs.find(q=>q.col===c); const sx = ant && ant.xml.match(/\bs="(\d+)"/); const sC = sx ? ` s="${sx[1]}"` : sD; cs = cs.filter(q=>q.col!==c);
@@ -1349,9 +1365,36 @@ function planilhaComSituacao(buf, linhasPorAba){
       setRow(r, cs); total++;
     }
     x = x.replace(/<dimension ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/, (a,c1,r1,c2,r2)=>`<dimension ref="${c1}${r1}:${colL(Math.max(colN(c2),maxC))}${r2}"/>`);
+    if (Object.keys(mover).length){ // guarda e tira as linhas das OPs produzidas
+      const L = linhas(x); const ks = chaves(L); const cOP = Object.keys(ks).find(c=>ks[c]==="OP|"); const del = [];
+      if (cOP) for (const r of Object.keys(L).map(Number).filter(r=>r>=3).sort((a,b)=>a-b)){ const cel = L[r].find(c=>c.col===+cOP); const k = cel ? opK(txtCell(cel.xml)) : "";
+        if (k && mover[k]){ if (!capt[k]) capt[k] = {cells:L[r], ks}; del.push(r); } }
+      x = tirarLinhas(x, del);
+    }
     wr(path, x);
   }
-  return {bytes: CFB.write(zip, {type:"array", fileType:"zip", compression:true}), total};
+  let temProd = false;
+  { // aba Produzido: um registro por OP
+    const pm = [...wbx.matchAll(/<sheet\b[^>]*>/g)].find(m=>N(unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""))==="PRODUZIDO");
+    let path = pm && relT[(pm[0].match(/r:id="([^"]+)"/)||[])[1]]; if (path) path = path.replace(/^\/?(xl\/)?/,"xl/");
+    let x = path && rd(path); temProd = !!x;
+    if (x && Object.keys(capt).length){
+      const L = linhas(x); const ks = chaves(L); const porK = {}; for (const [c,k] of Object.entries(ks)) if (!porK[k]) porK[k] = +c;
+      const cOP = porK["OP|"]; const ja = new Set(cOP ? Object.keys(L).map(Number).filter(r=>r>=3).map(r=>{ const c = L[r].find(q=>q.col===cOP); return c ? opK(txtCell(c.xml)) : ""; }).filter(Boolean) : []);
+      const base = Math.max(2, ...Object.keys(L).map(Number).filter(r=>(L[r]||[]).some(c=>txtCell(c.xml)!==""||/\bvm="/.test(c.xml)))); let ultima = base, novas = "";
+      const cSit = Object.keys(porK).find(k=>k.startsWith("SITUACAO")); const colSit = cSit ? porK[cSit] : null;
+      for (const [k, cp] of Object.entries(capt)){ if (ja.has(k)) continue; const nr = ++ultima; const mv = mover[k];
+        const cs = []; for (const c of cp.cells){ const dest = porK[cp.ks[c.col]]; if (!dest || dest===colSit) continue; cs.push({col:dest, xml:c.xml.replace(/(<c\b[^>]*?\br=")[A-Z]+\d+"/, `$1${colL(dest)}${nr}"`)}); }
+        if (colSit){ const sx = (cp.cells.find(c=>cp.ks[c.col]===cSit)||{}).xml; const st = sx && sx.match(/\bs="(\d+)"/);
+          cs.push({col:colSit, xml:`<c r="${colL(colSit)}${nr}"${st?` s="${st[1]}"`:""} t="inlineStr"><is><t>${esc(`Produzido · ${mv.maqs.join(", ")}${mv.em?" · "+mv.em.slice(8,10)+"/"+mv.em.slice(5,7)+"/"+mv.em.slice(0,4):""}`)}</t></is></c>`}); }
+        novas += `<row r="${nr}">${cs.sort((a,b)=>a.col-b.col).map(c=>c.xml).join("")}</row>`; movidas++; }
+      if (novas){ // apaga linhas vazias que estejam depois da última com dados, para não repetir número de linha
+        x = x.replace(/<sheetData>([\s\S]*?)<\/sheetData>/, (a, body) => "<sheetData>" + body.replace(ROWS_RE, (row, r) => +r > base ? "" : row) + novas + "</sheetData>").replace("<sheetData/>", `<sheetData>${novas}</sheetData>`);
+        x = x.replace(/<dimension ref="([A-Z]+)(\d+):([A-Z]+)(\d+)"\/>/, (a,c1,r1,c2,r2)=>`<dimension ref="${c1}${r1}:${c2}${Math.max(+r2, ultima)}"/>`);
+        wr(path, x); }
+    }
+  }
+  return {bytes: CFB.write(zip, {type:"array", fileType:"zip", compression:true}), total, movidas, semAba: !temProd && Object.keys(mover).length > 0 };
 }
 
 const ICO_SAVE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>`;
@@ -1364,7 +1407,7 @@ function situacaoPorAba(){
     const linhas = {};
     for (const p of S.pedidos.filter(p=>p.maquina===m.cod && p.linha)){
       const a = S.apont[p.id]; const feito = a && a.feito; const inf = ag && ag.info[p.id];
-      linhas[p.linha] = { SITUACAO: feito ? "Produzido" : semChapa(p) ? "Aguardando chapa" : reprog(p.id) ? "Reprogramar saldo" : travada(m.cod,p.id) ? "Programado" : "Não programado",
+      linhas[p.linha] = { OPK: opKey(p), SITUACAO: feito ? "Produzido" : semChapa(p) ? "Aguardando chapa" : reprog(p.id) ? "Reprogramar saldo" : travada(m.cod,p.id) ? "Programado" : "Não programado",
         SEQ: feito ? "" : (nSeq[p.id]||""), "INICIO PREV": feito ? "" : fmt(inf&&inf.ini), "FIM PREV": feito ? "" : fmt(inf&&inf.fim),
         PRODUZIDO: produzido(p) || (feito ? Number(p.quantidade)||0 : 0), SALDO: feito ? 0 : saldo(p) };
     }
@@ -1372,6 +1415,11 @@ function situacaoPorAba(){
   }
   return out;
 }
+/* OPs marcadas como produzidas no app (uma entrada por nº de OP, com as máquinas em que estava) */
+function opsProduzidas(){ const g = {};
+  for (const p of S.pedidos){ const a = S.apont[p.id]; if (!(a && a.feito)) continue; const k = opKey(p); if (!k) continue;
+    const o = g[k] = g[k] || {maqs:[], em:a.em||""}; if (!o.maqs.includes(p.maquina)) o.maqs.push(p.maquina); if ((a.em||"") > o.em) o.em = a.em; }
+  return g; }
 async function gravarNaPlanilha(){
   if (busy) return; if (!fsOK()) return toast("Para gravar na planilha, use o Chrome ou o Edge no computador.", true);
   busy = true; render();
@@ -1379,9 +1427,10 @@ async function gravarNaPlanilha(){
     let h = await getHandle(); if (!h) h = await escolherArquivo();
     let perm = await h.queryPermission({mode:"readwrite"}); if (perm!=="granted") perm = await h.requestPermission({mode:"readwrite"});
     if (perm!=="granted") throw Object.assign(new Error("Permissão para gravar não foi dada."), {name:"NotAllowedError"});
-    const file = await h.getFile(); const {bytes, total} = planilhaComSituacao(await file.arrayBuffer(), situacaoPorAba());
+    const file = await h.getFile(); const {bytes, total, movidas, semAba} = planilhaComSituacao(await file.arrayBuffer(), situacaoPorAba(), opsProduzidas());
     const w = await h.createWritable(); await w.write(bytes); await w.close();
-    toast(`Situação gravada na planilha ${file.name}: ${total} OP${total===1?"":"s"} atualizada${total===1?"":"s"}.`);
+    if (movidas){ busy = false; await importar(new File([bytes], file.name)); busy = true; } // relê a planilha: as OPs produzidas saem das máquinas no app também
+    toast(`Planilha ${file.name} gravada: ${total} OP${total===1?"":"s"} atualizada${total===1?"":"s"}${movidas?`; ${movidas} OP${movidas===1?"":"s"} produzida${movidas===1?"":"s"} movida${movidas===1?"":"s"} para a aba Produzido`:""}${semAba?". Crie a aba Produzido para mover as OPs produzidas":""}.`);
   }catch(e){
     if (e && e.name==="AbortError") {}
     else if (e && (e.name==="NoModificationAllowedError" || e.name==="InvalidStateError" || /lock|in use|being used/i.test(e.message||""))) toast("A planilha está aberta no Excel. Feche a planilha e clique de novo em Gravar na planilha.", true);
@@ -2110,6 +2159,7 @@ async function confirmarApontar(){
   const ok = await gravarApont(id, dado); d.querySelector('[data-act="aptOk"]').disabled=false; if (!ok) return;
   guardarHoras([todayISO()]);
   d.hidden=true; if (!document.getElementById("det").hidden) fecharOP();
+  if (fin==="sim" && canEdit && fsOK() && !matchMedia("(pointer:coarse)").matches){ render(); gravarNaPlanilha(); return; } // computador: já tira das máquinas e lança em Produzido
   toast(fin==="sim" ? `OP ${opN(p)} finalizada com ${fmtN(tot)} cx.` : `OP ${opN(p)}: ${fmtN(v)} cx apontadas. Saldo de ${fmtN(saldo(p))} cx volta para reprogramar.`);
   render();
 }
