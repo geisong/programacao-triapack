@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack</title>
-<script>window.APP_VERSAO="20261126122304";</script>
+<script>window.APP_VERSAO="20261126140918";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -374,6 +374,8 @@ body.dropping::after{content:"Solte a planilha aqui para atualizar";position:fix
 .fila-l li{display:grid!important;grid-template-columns:40px 34px minmax(0,2.6fr) 90px 150px 86px auto;align-items:center;gap:10px}
 .fila-l .grip{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--surface2);color:var(--muted);font-size:18px;letter-spacing:0!important;cursor:grab;touch-action:none}
 .fila-l .grip:hover{background:var(--accent-soft);color:var(--accent)}
+.chapa-box{border:1px dashed #e0a800;border-radius:12px;padding:12px;background:#fffbea;display:grid;gap:8px}.chapa-box h3{margin:0;font-size:16px;display:flex;gap:8px;align-items:center}
+.chapa-l li{opacity:.92}.grip.off{cursor:default;background:#fff3bf}.chapabtn{background:#fff3bf!important;color:#8a6100!important;border-color:#e0a800!important;white-space:nowrap}
 .fila-l li.dragging{opacity:1!important;box-shadow:0 10px 24px rgba(0,0,0,.22);border-color:var(--accent);background:var(--surface);position:relative;z-index:5}
 .fila-l .fq,.fila-l .fw,.fila-l .fe{font-size:12.5px;font-family:var(--f-mono)}
 .fila-l .fq{text-align:right}.fila-l .fe.late{color:var(--bad);font-weight:700}
@@ -586,14 +588,17 @@ function sequenciar(list){
 
 /* ordem manual (arrastar) + OPs travadas: a OP travada fica fixa na posição; as outras ocupam as posições livres */
 const LOCK_I = `<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
-const stPill = (cod,id) => reprog(id) ? `<span class="pill np">${UNLOCK_I}Reprogramar saldo</span>` : travada(cod,id) ? `<span class="pill ok">${LOCK_I}Programado</span>` : `<span class="pill np">${UNLOCK_I}Não programado</span>`;
+const stPill = (cod,id) => semChapa(id) ? `<span class="pill warn">⏳ Aguardando chapa</span>` : reprog(id) ? `<span class="pill np">${UNLOCK_I}Reprogramar saldo</span>` : travada(cod,id) ? `<span class="pill ok">${LOCK_I}Programado</span>` : `<span class="pill np">${UNLOCK_I}Não programado</span>`;
 const UNLOCK_I = `<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1.9"/></svg>`;
 const produzido = p => Number(S.apont[p.id] && S.apont[p.id].produzido) || 0;
 const saldo = p => Math.max(0, (Number(p.quantidade)||0) - produzido(p));
 const reprog = id => !!(S.apont[id] && !S.apont[id].feito && S.apont[id].reprogramar);
 const opN = p => (p && (p.op || p.codigo)) || "—";
 const travas = cod => S.travas[cod] || {};
-const travada = (cod, id) => Object.prototype.hasOwnProperty.call(travas(cod), id) && !reprog(id);
+/* Recebimento de chapa = "Não" na planilha: a OP fica fora da sequência (Aguardando chapa) e não pode ser programada */
+let _scRef = null, _sc = new Set();
+const semChapa = x => { if (_scRef!==S.pedidos){ _scRef = S.pedidos; _sc = new Set(S.pedidos.filter(p=>p.chapa==="nao").map(p=>p.id)); } return _sc.has(typeof x==="string" ? x : x && x.id); };
+const travada = (cod, id) => Object.prototype.hasOwnProperty.call(travas(cod), id) && !reprog(id) && !semChapa(id);
 function ordenar(cod, pend){
   let auto = sequenciar(pend); const man = S.ordem[cod];
   if (ehCol(cod)){ const ini = UI.inicio || firstDay(); const rd = new Map(auto.map(s=>{ const r = liberacao(s.p, ini); return [s.p.id, r ? r.data : ""]; })); auto = auto.map((s,i)=>[s,i]).sort((a,b)=>rd.get(a[0].p.id).localeCompare(rd.get(b[0].p.id)) || a[1]-b[1]).map(x=>x[0]); }
@@ -638,7 +643,7 @@ async function salvarOrdem(cod, ids, tvNovo){
   render(); await gravarOrdem(cod);
 }
 async function alternarTrava(cod, id){
-  const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
+  const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito) && !semChapa(p));
   const seq = ordenar(cod, pend); const pos = seq.findIndex(s=>s.p.id===id); if (pos<0) return;
   const tv = {...travas(cod)};
   if (travada(cod, id)) delete tv[id];
@@ -650,7 +655,8 @@ async function alternarTrava(cod, id){
 }
 function alertMsg(t){ const el=document.getElementById("filaMsg"); if (el){ el.textContent=t; el.hidden=false; } }
 function filaPanel(ag, cod){
-  if (!canEdit || !ag.seq.length) return "";
+  const ch = ag.chapa || [];
+  if (!canEdit || (!ag.seq.length && !ch.length)) return "";
   const man = !!(S.ordem[cod] && S.ordem[cod].length);
   const nT = ag.seq.filter(q=>travada(cod,q.p.id)).length;
   const last = ag.seq.length-1;
@@ -664,6 +670,8 @@ function filaPanel(ag, cod){
       <span class="fw">${f && f.ini ? `${dShort(f.ini.data)} ${hm(f.ini.h)} → ${f.fim ? (f.fim.data!==f.ini.data?dShort(f.fim.data)+" ":"")+hm(f.fim.h) : "—"}` : "sem data"}</span>
       <span class="fe${late?" late":""}" title="Entrega">${q.p.entrega ? "Ent. "+dShort(q.p.entrega) : "—"}</span>
       <span class="mv"><button class="small lockbtn st ${L?"on":""}" data-lock="${esc(q.p.id)}" title="${L?"Marcar como não programado":"Marcar como programado"}" aria-label="OP ${esc(opN(q.p))}: ${L?"programado":"não programado"}">${L?LOCK_I+"Programado":UNLOCK_I+(reprog(q.p.id)?"Reprogr.":"Não prog.")}</button><button class="small okbtn" data-prod="${esc(q.p.id)}" title="Marcar como produzido" aria-label="Marcar OP ${esc(opN(q.p))} como produzido">✓</button></span></li>`; }).join("")}</ol>
+    ${ch.length?`<div class="chapa-box"><h3>⏳ Aguardando chapa <span class="pill warn">${ch.length}</span></h3><p class="sub" style="margin:0">Recebimento de chapa = <b>Não</b> na planilha. Estas OPs ficam fora da sequência e não podem ser programadas até a chapa chegar (marque <b>Sim</b> e atualize).</p>
+      <ul class="fila-l chapa-l">${ch.map(p=>`<li><span class="grip off" aria-hidden="true">⏳</span><span class="mono n">—</span><span class="t ft"><b>OP ${esc(opN(p))}</b> ${esc(p.descricao||"")}<span class="dots">${(p.cores||[]).map(c=>`<i title="${esc(c)}" style="background:${SW[corBase(c)]||"transparent"}"></i>`).join("")}</span><small>${esc(p.cliente||"")}</small></span><span class="fq">${fmtN(saldo(p))} cx</span><span class="fw">sem data</span><span class="fe${p.entrega && p.entrega<todayISO()?" late":""}">${p.entrega?"Ent. "+dShort(p.entrega):"—"}</span><span class="mv"><button class="small st chapabtn" data-semchapa="${esc(p.id)}" title="Aguardando chapa">Aguardando chapa</button></span></li>`).join("")}</ul></div>`:""}
     <div class="notice err" id="filaMsg" hidden></div>
     ${man?`<div><button data-act="auto">Voltar à ordem automática</button></div>`:""}
     ${(()=>{ const n = S.pedidos.filter(p=>p.maquina===cod && S.apont[p.id] && S.apont[p.id].feito).length; return n ? `<a class="sub" href="#produzidas" style="margin:0">${n} OP${n===1?"":"s"} produzida${n===1?"":"s"} nesta máquina · ver em Ordens produzidas</a>` : ""; })()}
@@ -704,20 +712,21 @@ function agendarTrimbox(cod, inicio, seq){
     info[q.p.id] = {n:q.n, ini:{data:a.data, h:a.h}, fim:{data:b.data, h:b.h}, grupo:q.grupo, rel:null, espera:false};
   }
   const dias = [...porDia.entries()].filter(([d])=>d >= inicio || true).sort((x,y)=>x[0].localeCompare(y[0])).map(([data, blocks])=>({data, blocks:blocks.sort((x,y)=>x.a-y.a)}));
-  return {dias, semData:[], seq:queue, info, trimbox:true};
+  return {dias, semData:[], seq:queue, info, trimbox:true, chapa: aguardandoChapa(cod)};
 }
 /* hora de início da produção (por máquina) e paradas */
 const inicioEf = cod => { const s = S.inicioMaq[cod]; return s && s.data && s.data >= todayISO() && s.h!=null ? s : null; };
 const cortarIv = (iv, a, b) => { const out = []; for (const [x,y] of iv){ if (b<=x || a>=y){ out.push([x,y]); continue; } if (a>x) out.push([x,a]); if (b<y) out.push([b,y]); } return out.filter(([x,y])=>y-x>0.01); };
+const aguardandoChapa = cod => S.pedidos.filter(p=>p.maquina===cod && semChapa(p) && !(S.apont[p.id]&&S.apont[p.id].feito));
 function agendar(cod, inicio){
-  if (window.APP_TESTE && S.maquinas[cod] && !inicioEf(cod) && !(S.paradas[cod]||[]).length){ const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
+  if (window.APP_TESTE && S.maquinas[cod] && !inicioEf(cod) && !(S.paradas[cod]||[]).length){ const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito) && !semChapa(p));
     if (pend.length && pend.every(p=>tbMin(p.tbInicio) && tbMin(p.tbFim))){ const seq = ordenar(cod, pend);
       const tbOrd = [...pend].sort((x,y)=>String(x.tbInicio).localeCompare(String(y.tbInicio))).map(p=>p.id);
       if (seq.every((s,i)=>s.p.id===tbOrd[i])) return agendarTrimbox(cod, inicio, seq); } }
   const m = S.maquinas[cod]; if (!m) return {dias:[], semData:[], seq:[]};
   const rate = Number(m.batidasMin)||0;               // caixas por minuto
   const L = Number(m.limpeza)||0, SU = Number(m.setup)||0;
-  const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
+  const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito) && !semChapa(p));
   const seq = ordenar(cod, pend);
   const queue = seq.map((s,i)=>({...s, n:i+1, rest:saldo(s.p), started:false, rel: ehCol(cod) ? liberacao(s.p, inicio) : null}));
   const dias = []; const info = {};
@@ -790,7 +799,7 @@ function agendar(cod, inicio){
     dias.push({data:d.data, blocks:withBreaks});
   }
   const semData = queue.slice(qi).filter(q=>q.rest>0);
-  return {dias, semData, seq:queue, info};
+  return {dias, semData, seq:queue, info, chapa: aguardandoChapa(cod)};
 }
 
 /* ---------- leitura da planilha ---------- */
@@ -818,12 +827,12 @@ function mapaColunas(h1, h2){
     op: find(h=>/^(N |NO |NUM |NUMERO (DA )?)?OP$/.test(h) || h==="ORDEM DE PRODUCAO" || h==="O P"),
     codigo: find(h=>/^COD/.test(h)), descricao: find(h=>/^DESCR/.test(h)), cliente: find(h=>/^CLIENTE/.test(h)),
     entrega: find(h=>/ENTREGA/.test(h)), modelo: find(h=>/^MODELO/.test(h)), onda: find(h=>/ONDA/.test(h)),
-    quantidade: find(h=>/^QU?A?NT/.test(h)), desenho: find(h=>/^DESENHO/.test(h)),
+    quantidade: find(h=>/^QU?A?NT/.test(h)), desenho: find(h=>/^DESENHO/.test(h)), chapa: find(h=>/RECEB/.test(h) && /CHAPA/.test(h)),
     cores: H.map((h,i)=>/^COR\b/.test(h)?i:-1).filter(i=>i>=0)
   };
   const grupo = (re, subs) => { const i = H.findIndex(h=>re.test(h)); if (i<0) return {}; const o={}; for (let k=i;k<Math.min(i+4,S2.length);k++){ if (k>i && H[k]) break; for (const [key,pat] of subs) if (o[key]==null && pat.test(S2[k])) o[key]=k; } return o; };
   Object.assign(C, Object.fromEntries(Object.entries(grupo(/INTERN/, [["cxComp",/^COMP/],["cxLarg",/^LARG/],["cxAlt",/^ALT/]]))));
-  Object.assign(C, Object.fromEntries(Object.entries(grupo(/CHAPA/, [["chLarg",/^LARG/],["chComp",/^COMP/]]))));
+  Object.assign(C, Object.fromEntries(Object.entries(grupo(/^(?!.*RECEB).*CHAPA/, [["chLarg",/^LARG/],["chComp",/^COMP/]]))));
   const def = {codigo:0, descricao:1, cliente:2, entrega:3, modelo:4, onda:5, cxComp:6, cxLarg:7, cxAlt:8, chLarg:9, chComp:10, quantidade:11, desenho:16};
   if (C.codigo==null && C.descricao==null) Object.assign(C, def, {cores:[12,13,14,15]});
   if (!C.cores.length) C.cores=[12,13,14,15];
@@ -856,7 +865,7 @@ function lerPlanilha(wb){
       const dl = txt(g(r,"desenho"));
       pedidos.push({id, maquina:m.cod, op, codigo, descricao:desc, cliente:txt(g(r,"cliente")), entrega:serialToISO(g(r,"entrega")), modelo:txt(g(r,"modelo")), onda:txt(g(r,"onda")).toUpperCase(),
         cxComp:num(g(r,"cxComp")), cxLarg:num(g(r,"cxLarg")), cxAlt:num(g(r,"cxAlt")), chLarg:num(g(r,"chLarg")), chComp:num(g(r,"chComp")), quantidade:num(g(r,"quantidade"))||0,
-        cores:C.cores.map(i=>txt(r[i])).filter(Boolean), linha:ix+3, desenhoLink: /^(https?:\/\/|\\\\|[A-Za-z]:\\)/.test(dl) ? dl : ""});
+        cores:C.cores.map(i=>txt(r[i])).filter(Boolean), chapa: (v=>/^N/.test(v)?"nao":/^S/.test(v)?"sim":"")(normName(txt(g(r,"chapa")))), linha:ix+3, desenhoLink: /^(https?:\/\/|\\\\|[A-Za-z]:\\)/.test(dl) ? dl : ""});
     });
   }
   return {maquinas, calendario, pedidos, avisos};
@@ -1300,7 +1309,7 @@ function planilhaComSituacao(buf, linhasPorAba){
   let total = 0;
   for (const m of wbx.matchAll(/<sheet\b[^>]*>/g)){
     const nome = unesc((m[0].match(/name="([^"]+)"/)||[])[1]||""); const rid = (m[0].match(/r:id="([^"]+)"/)||[])[1];
-    const dados = linhasPorAba[N(nome)]; if (!dados || !Object.keys(dados).length) continue;
+    const dados = linhasPorAba[N(nome)]; if (!dados) continue;
     let path = relT[rid]; if (!path) continue; path = path.replace(/^\/?(xl\/)?/,"xl/");
     let x = rd(path); if (!x) continue;
     const cellsOf = inner => [...inner.matchAll(/<c\b[^>]*?r="([A-Z]+)(\d+)"[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g)].map(c=>({col:colN(c[1]), xml:c[0]}));
@@ -1316,7 +1325,15 @@ function planilhaComSituacao(buf, linhasPorAba){
     const h = getRow(1); const hc = h ? cellsOf(h.inner) : [];
     const sHead = ((hc[0]||{}).xml||"").match(/\bs="(\d+)"/); const sH = sHead ? ` s="${sHead[1]}"` : "";
     let maxC = Math.max(0, ...hc.map(c=>c.col)); const pos = {}; const novas = [];
+    let colCh = (hc.find(c=>{ const t = N(txtOf(c.xml)); return /RECEB/.test(t) && /CHAPA/.test(t); })||{}).col;
+    if (!colCh){ colCh = ++maxC; novas.push([colCh, "Recebimento de chapa"]); }
     for (const [key, label] of COLS){ const f = hc.find(c=>N(txtOf(c.xml)).startsWith(key)); if (f) pos[key]=f.col; else { pos[key]=++maxC; novas.push([pos[key], label]); } }
+    { // lista suspensa Sim/Não na coluna Recebimento de chapa
+      const L = colL(colCh); const jaTem = [...x.matchAll(/<dataValidation\b[^>]*sqref="([^"]*)"/g)].some(v=>v[1].split(/\s+/).some(r=>r.replace(/\d+/g,"").split(":")[0]===L));
+      if (!jaTem){ const dv = `<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Recebimento de chapa" error="Escolha Sim ou Não." sqref="${L}3:${L}5000"><formula1>"Sim,Não"</formula1></dataValidation>`;
+        if (/<dataValidations\b/.test(x)) x = x.replace(/<dataValidations\b([^>]*?)count="(\d+)"([^>]*)>/, (a,p1,n,p2)=>`<dataValidations${p1}count="${+n+1}"${p2}>${dv}`);
+        else { const blk = `<dataValidations count="1">${dv}</dataValidations>`; const m2 = x.match(/<(hyperlinks|printOptions|pageMargins|pageSetup|headerFooter|rowBreaks|colBreaks|customProperties|cellWatches|ignoredErrors|smartTags|drawing|legacyDrawing|legacyDrawingHF|picture|oleObjects|controls|webPublishItems|tableParts|extLst)\b/);
+          x = m2 ? x.slice(0, m2.index) + blk + x.slice(m2.index) : x.replace("</worksheet>", blk+"</worksheet>"); } } }
     if (novas.length){ setRow(1, [...hc, ...novas.map(([c,l])=>({col:c, xml:`<c r="${colL(c)}1"${sH} t="inlineStr"><is><t>${esc(l)}</t></is></c>`}))]);
       const h2 = getRow(2); if (h2){ const c2 = cellsOf(h2.inner).filter(c=>!novas.some(([n])=>n===c.col)); setRow(2, [...c2, ...novas.map(([c])=>({col:c, xml:`<c r="${colL(c)}2"${sH}/>`}))]);
         const mc = novas.map(([c])=>`<mergeCell ref="${colL(c)}1:${colL(c)}2"/>`).join("");
@@ -1348,7 +1365,7 @@ function situacaoPorAba(){
     const linhas = {};
     for (const p of S.pedidos.filter(p=>p.maquina===m.cod && p.linha)){
       const a = S.apont[p.id]; const feito = a && a.feito; const inf = ag && ag.info[p.id];
-      linhas[p.linha] = { SITUACAO: feito ? "Produzido" : reprog(p.id) ? "Reprogramar saldo" : travada(m.cod,p.id) ? "Programado" : "Não programado",
+      linhas[p.linha] = { SITUACAO: feito ? "Produzido" : semChapa(p) ? "Aguardando chapa" : reprog(p.id) ? "Reprogramar saldo" : travada(m.cod,p.id) ? "Programado" : "Não programado",
         SEQ: feito ? "" : (nSeq[p.id]||""), "INICIO PREV": feito ? "" : fmt(inf&&inf.ini), "FIM PREV": feito ? "" : fmt(inf&&inf.fim),
         PRODUZIDO: produzido(p) || (feito ? Number(p.quantidade)||0 : 0), SALDO: feito ? 0 : saldo(p) };
     }
@@ -1715,7 +1732,7 @@ function viewGantt(){
   </section>`;
 }
 function moverNaFila(cod, id, alvoId, dir){
-  const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
+  const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito) && !semChapa(p));
   const ids = ordenar(cod, pend).map(s=>s.p.id); const i = ids.indexOf(id); if (i<0) return;
   if (travada(cod, id)) { toast("Esta OP está travada (Programado). Abra o cadeado para mudar a posição.", true); return; }
   if (alvoId){ const j = ids.indexOf(alvoId); if (j<0 || j===i) return; ids.splice(i,1); ids.splice(j,0,id); }
@@ -1764,6 +1781,7 @@ function vResposta(texto){
     const p = r.p, pv = vPrevisao(r.k); const cab = `<b>OP ${esc(opN(p))}</b> · ${esc(p.descricao||"")}${p.cliente?` · ${esc(p.cliente)}`:""}`;
     const qtd = r.ps.reduce((m,x)=>Math.max(m, Number(x.quantidade)||0),0);
     if (!pv.pend.length) return `${cab}<br>✅ <b>Já está pronta</b> (todos os processos foram apontados como produzidos).`;
+    if (pv.pend.some(x=>semChapa(x.p))) return `${cab}<br>⏳ <b>Aguardando chapa</b> (${pv.pend.filter(x=>semChapa(x.p)).map(x=>esc(x.m.cod)).join(", ")}). A previsão sai quando a chapa chegar. Fale com o PCP.`;
     if (pv.semData || !pv.ult) return `${cab}<br>⚠️ Ainda <b>sem data</b>: ${pv.pend.filter(x=>!x.fim).map(x=>esc(x.m.cod)).join(", ")} não coube no calendário. Fale com o PCP.`;
     const f = pv.ult.fim; const late = p.entrega && f.data > p.entrega;
     const quando = `${dow(f.data).toLowerCase()}, ${dBR(f.data)} às ${hm(f.h)}`;
@@ -1782,6 +1800,7 @@ function vStatus(k){
   if (!pv.rot.length) return null;
   const ent = p.entrega || "";
   if (!pv.pend.length) return {pv, p, st:"pronto", lab:"Pronto", cls:"ok"};
+  if (pv.pend.some(x=>semChapa(x.p))) return {pv, p, st:"chapa", lab:"Aguardando chapa", cls:"warn"};
   if (pv.semData || !pv.ult) return {pv, p, st:"semdata", lab:"Sem data", cls:"bad"};
   const f = pv.ult.fim;
   if ((ent && f.data > ent) || (ent && ent < hoje)) return {pv, p, f, st:"atraso", lab:"Atrasado", cls:"bad"};
@@ -1819,7 +1838,7 @@ function viewVendas(){
     corpo = `<div class="panel controls">
       <label class="f">Buscar<input type="search" id="vQ" value="${esc(UI.vQ||"")}" placeholder="OP, código, produto…"></label>
       <label class="f">Cliente<select id="vCli"><option value="">Todos</option>${clientes.map(c=>`<option ${fc===c?"selected":""}>${esc(c)}</option>`).join("")}</select></label>
-      <label class="f">Situação<select id="vSt"><option value="">Todas</option>${[["atraso","Atrasado"],["risco","No limite"],["prazo","No prazo"],["semdata","Sem data"],["pronto","Pronto"]].map(([v,l])=>`<option value="${v}" ${fs===v?"selected":""}>${l}</option>`).join("")}</select></label>
+      <label class="f">Situação<select id="vSt"><option value="">Todas</option>${[["atraso","Atrasado"],["risco","No limite"],["prazo","No prazo"],["chapa","Aguardando chapa"],["semdata","Sem data"],["pronto","Pronto"]].map(([v,l])=>`<option value="${v}" ${fs===v?"selected":""}>${l}</option>`).join("")}</select></label>
     </div>
     <section class="panel" style="padding:0"><div class="scroll"><table class="vcart"><thead><tr><th>OP</th><th>Produto</th><th>Cliente</th><th class="num">Qtd</th><th>Entrega</th><th>Previsão de pronto</th><th>Situação</th><th></th></tr></thead><tbody>
     ${lista.map(c=>`<tr><td class="mono vc-op"><b>${esc(opN(c.p))}</b></td><td>${esc(c.p.descricao||"")}<div class="sub" style="margin:0">${esc(c.p.codigo||"")}</div></td><td data-l="Cliente">${esc(c.p.cliente||"")}</td><td class="num" data-l="Qtd">${fmtN(c.qtd)}</td><td class="mono" data-l="Entrega">${c.p.entrega?dBR(c.p.entrega):"—"}</td><td class="mono" data-l="Previsão">${c.st==="pronto"?"Pronto":c.f?`${dShort(c.f.data)} ${hm(c.f.h)}`:"—"}</td><td data-l="Situação">${pill(c)}</td><td class="vc-act"><button class="btn sm" data-vsug="OP ${esc(String(c.p.op||c.p.codigo||""))}" data-vgo="1">Perguntar</button></td></tr>`).join("") || `<tr><td colspan="8" class="empty">Nenhum pedido com esse filtro.</td></tr>`}
@@ -2051,6 +2070,7 @@ app.addEventListener("click", async e => {
   if (b.dataset.maq){ UI.maq=b.dataset.maq; saveUI(); location.hash = "#sequencia/"+encodeURIComponent(b.dataset.maq); return; }
   if (b.dataset.act==="auto"){ salvarOrdem(UI.maq, null); return; }
   if (b.dataset.lock){ alternarTrava(UI.maq, b.dataset.lock); return; }
+  if (b.dataset.semchapa){ toast("Aguardando chapa: esta OP só pode ser programada quando o Recebimento de chapa estiver Sim na planilha.", true); return; }
   if (b.dataset.act==="parada"){ const d = UI.inicio || firstDay(); document.getElementById("parM").textContent = "Máquina "+UI.maq+" · a programação é recalculada sem esse horário.";
     document.getElementById("parD").value = d; document.getElementById("parI").value = ""; document.getElementById("parF").value = ""; document.getElementById("parMot").value = ""; document.getElementById("parErr").hidden = true; document.getElementById("mdlPar").hidden = false; document.getElementById("parI").focus(); return; }
   if (b.dataset.delpar){ S.paradas[UI.maq] = (S.paradas[UI.maq]||[]).filter(p=>p.id!==b.dataset.delpar); render(); gravarOrdem(UI.maq); return; }
@@ -2083,7 +2103,7 @@ async function confirmarApontar(){
   const tot = (Number(ant.produzido)||0) + v;
   let dado;
   if (fin==="sim"){
-    const pend = S.pedidos.filter(x=>x.maquina===p.maquina && !(S.apont[x.id]&&S.apont[x.id].feito));
+    const pend = S.pedidos.filter(x=>x.maquina===p.maquina && !(S.apont[x.id]&&S.apont[x.id].feito) && !semChapa(x));
     const pos = ordenar(p.maquina, pend).findIndex(q=>q.p.id===id);
     dado = {feito:true, em:new Date().toISOString(), maquina:p.maquina, pos: pos<0?0:pos, produzido:tot, parciais};
   } else dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais, reprogramar:true};
