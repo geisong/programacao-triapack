@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261126101633";</script>
+<script>window.APP_VERSAO="20261126120714";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -1179,7 +1179,7 @@ async function gerarRelatorio(){
     doc.text("PROGRAMAÇÃO DA PRODUÇÃO", W/2, 10.5, {align:"center"});
     doc.setFont("helvetica","normal"); doc.setFontSize(9.5); doc.setTextColor(205,212,219);
     doc.text(`${m.cod} · ${m.nome}   |   ${periodo}`, W/2, 16.5, {align:"center"});
-    doc.setFontSize(8); doc.text(`Emitido em ${emitido}`, W-M, 10, {align:"right"}); doc.text(`Arquivo: ${S.imp ? S.imp.arquivo : "—"}`, W-M, 15, {align:"right"});
+    doc.setFontSize(8); doc.text(`Emitido em ${emitido}`, W-M, 10, {align:"right"}); if (!window.APP_TESTE) doc.text(`Arquivo: ${S.imp ? S.imp.arquivo : "—"}`, W-M, 15, {align:"right"});
   };
   const med = p => [p.cxComp,p.cxLarg,p.cxAlt].some(v=>v!=null) ? [p.cxComp,p.cxLarg,p.cxAlt].map(v=>v==null?"—":fmtN(v)).join(" × ") : "—";
   const ch = p => [p.chLarg,p.chComp].some(v=>v!=null) ? `${fmtN(p.chLarg)} × ${fmtN(p.chComp)}` : "—";
