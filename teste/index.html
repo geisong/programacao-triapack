@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261126094726";</script>
+<script>window.APP_VERSAO="20261126101633";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -366,8 +366,22 @@ body.dropping::after{content:"Solte a planilha aqui para atualizar";position:fix
 .dots i{width:12px;height:12px;border-radius:50%;border:1px solid rgba(127,127,127,.5);display:inline-block}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
 .seqgrid{display:grid;gap:18px;grid-template-columns:minmax(0,1fr);align-items:start}
-@media (min-width:1000px){.seqgrid.has-fila{grid-template-columns:340px minmax(0,1fr)}}
+
 .fila{display:grid;gap:10px}
+.row-stop td{background:#fde8e8;color:#b42318;font-weight:600}
+.g-stop{background:#d64545;color:#fff}
+.gt-t .gt-stop{position:absolute;top:3px;height:40px;background:repeating-linear-gradient(45deg,#d64545 0 6px,#b83232 6px 12px);border-radius:4px}
+.fila-l li{display:grid!important;grid-template-columns:40px 34px minmax(0,2.6fr) 90px 150px 86px auto;align-items:center;gap:10px}
+.fila-l .grip{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:8px;background:var(--surface2);color:var(--muted);font-size:18px;letter-spacing:0!important;cursor:grab;touch-action:none}
+.fila-l .grip:hover{background:var(--accent-soft);color:var(--accent)}
+.fila-l li.dragging{opacity:1!important;box-shadow:0 10px 24px rgba(0,0,0,.22);border-color:var(--accent);background:var(--surface);position:relative;z-index:5}
+.fila-l .fq,.fila-l .fw,.fila-l .fe{font-size:12.5px;font-family:var(--f-mono)}
+.fila-l .fq{text-align:right}.fila-l .fe.late{color:var(--bad);font-weight:700}
+.fila-l .ft small{display:block;color:var(--muted)}
+.paradas{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.parchip{display:inline-flex;align-items:center;gap:6px;background:#fde8e8;color:#b42318;border-radius:999px;padding:4px 6px 4px 10px;font-size:12.5px;font-weight:600}
+.parchip button{border:0;background:transparent;color:inherit;font-size:15px;line-height:1;padding:0 4px;cursor:pointer}
+@media (max-width:760px){.fila-l li{grid-template-columns:40px 28px minmax(0,1fr) auto}.fila-l .fq,.fila-l .fw,.fila-l .fe{grid-column:3/-1;text-align:left}.fila-l .mv{grid-column:1/-1;justify-content:flex-end}}
 .fila .head{align-items:center}
 .fila-l{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 .fila-l li{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);cursor:grab;user-select:none}
@@ -465,6 +479,13 @@ body{touch-action:manipulation;overflow-x:hidden}
     <div class="log" id="pdfLog" hidden></div>
   </div>
 </div>
+<div class="mdl" id="mdlPar" hidden style="z-index:30"><div class="box" role="dialog" aria-modal="true" aria-labelledby="parT"><h2 id="parT" style="margin:0">Inserir parada</h2><p class="sub" id="parM" style="margin:0"></p>
+<label class="fld"><span>Data</span><input id="parD" type="date"></label>
+<div style="display:flex;gap:10px"><label class="fld" style="flex:1"><span>Início</span><input id="parI" type="time"></label><label class="fld" style="flex:1"><span>Fim</span><input id="parF" type="time"></label></div>
+<label class="fld"><span>Motivo da parada</span><input id="parMot" type="text" list="parMotivos" placeholder="Ex.: Manutenção corretiva" maxlength="80"></label>
+<datalist id="parMotivos"><option>Manutenção corretiva</option><option>Manutenção preventiva</option><option>Falta de material</option><option>Falta de energia</option><option>Troca de faca / clichê</option><option>Falta de operador</option><option>Reunião / treinamento</option><option>Limpeza geral</option><option>Outro</option></datalist>
+<div class="notice err" id="parErr" hidden></div>
+<div class="controls"><button class="primary" id="parOk">Salvar parada</button><button id="parX">Cancelar</button></div></div></div>
 <div class="mdl" id="apt" hidden style="z-index:30"><div class="box" role="dialog" aria-modal="true" aria-labelledby="aptT"><h2 id="aptT" style="margin:0">Apontar produção</h2><p class="sub" id="aptOP" style="margin:0"></p>
 <label class="fld"><span>Quantidade produzida (caixas)</span><input id="aptQ" type="number" inputmode="numeric" min="1" step="1"></label>
 <fieldset class="fin"><legend>Finalizar a OP?</legend>
@@ -495,7 +516,7 @@ body{touch-action:manipulation;overflow-x:hidden}
 <script>
 (() => {
 "use strict";
-const S = { maquinas:{}, calendario:[], pedidos:[], apont:{}, hist:{}, ordem:{}, travas:{}, imp:null, loaded:{m:false,c:false,p:false} };
+const S = { maquinas:{}, calendario:[], pedidos:[], apont:{}, hist:{}, ordem:{}, travas:{}, inicioMaq:{}, paradas:{}, imp:null, loaded:{m:false,c:false,p:false} };
 let db = null, canEdit = false, canWrite = true, dbState = "loading", local = false;
 const LKEY = "triapack-dados";
 const saveLocal = () => { try { localStorage.setItem(LKEY, JSON.stringify({maquinas:S.maquinas,calendario:S.calendario,pedidos:S.pedidos,apont:S.apont,ordem:S.ordem,travas:S.travas,imp:S.imp})); } catch(e){} };
@@ -596,19 +617,20 @@ function ordenar(cod, pend){
 async function gravarOrdem(cod){
   if (local){ saveLocal(); return; }
   if (!db) return;
-  const ref = db.doc("ordem/"+idSafe(cod)); const ids = S.ordem[cod]||[]; const tv = S.travas[cod]||{};
-  try { if (ids.length || Object.keys(tv).length) await ref.set({maquina:cod, ids, travas:tv, em:new Date().toISOString()}); else await ref.delete(); }
+  const ref = db.doc("ordem/"+idSafe(cod)); const ids = S.ordem[cod]||[]; const tv = S.travas[cod]||{}; const ini = S.inicioMaq[cod]||null, par = S.paradas[cod]||[];
+  try { if (ids.length || Object.keys(tv).length || ini || par.length) await ref.set({maquina:cod, ids, travas:tv, inicio:ini, paradas:par, em:new Date().toISOString()}); else await ref.delete(); }
   catch(e){ alertMsg("Não foi possível salvar a ordem: "+(e&&(e.message||e.code))); return; }
   for (const p of S.pedidos.filter(p=>p.maquina===cod && S.apont[p.id] && !S.apont[p.id].feito && Number.isInteger(S.apont[p.id].pos))){
     const a = {...S.apont[p.id]}; delete a.pos;
     try { if (a.produzido) await db.doc("apontamentos/"+p.id).set(a); else await db.doc("apontamentos/"+p.id).delete(); } catch(e){} }
 }
-async function salvarOrdem(cod, ids){
+async function salvarOrdem(cod, ids, tvNovo){
+  const tvAnt = S.travas[cod]; if (tvNovo) S.travas[cod] = tvNovo;
   if (ids && ehCol(cod)){
     const ini = UI.inicio || firstDay(); const antes = agendar(cod, ini); const old = S.ordem[cod];
     S.ordem[cod] = ids; const dep = agendar(cod, ini);
     const ruim = dep.seq.find(q=>q.rel && (q.waitMin||0) > ((antes.seq.find(x=>x.p.id===q.p.id)||{}).waitMin||0) + 1);
-    if (ruim){ if (old) S.ordem[cod] = old; else delete S.ordem[cod]; render();
+    if (ruim){ if (old) S.ordem[cod] = old; else delete S.ordem[cod]; if (tvNovo) S.travas[cod] = tvAnt; render();
       const r = ruim.rel; const msg = `Não é possível programar a OP ${opN(ruim.p)} para iniciar antes do fim do primeiro processo. Na impressora ${r.maq} ela ${r.semData ? "ainda não tem data de término" : `termina em ${dBR(r.data)} às ${hm(r.h)}`}.`;
       toast(msg, true); alertMsg(msg); return; }
   }
@@ -634,8 +656,14 @@ function filaPanel(ag, cod){
   const last = ag.seq.length-1;
   return `<section class="panel fila" aria-label="Ordem da fila">
     <div class="head"><h2>Ordem da fila</h2><span style="display:flex;gap:6px"><span class="pill ok">${nT} programada${nT===1?"":"s"}</span>${ag.seq.length-nT?`<span class="pill np">${ag.seq.length-nT} não programada${ag.seq.length-nT===1?"":"s"}</span>`:""}${man?`<span class="pill acc">Manual</span>`:`<span class="pill">Automática</span>`}</span></div>
-    <p class="sub" style="margin:0">Arraste um pedido para a posição desejada (ou use as setas). Use ✓ quando a OP for produzida. Clique no cadeado para marcar a OP como <b>Programado</b>: ela fica fixa na posição quando entrarem OPs novas. Sem o cadeado, a OP aparece como <b>Não programado</b>.</p>
-    <ol class="fila-l" id="fila">${ag.seq.map((q,i)=>{ const L = travada(cod,q.p.id); return `<li draggable="${L?"false":"true"}" class="${L?"locked":""}" data-id="${esc(q.p.id)}"><span class="grip" aria-hidden="true">${L?"":"⋮⋮"}</span><span class="mono n">${q.n}</span><span class="t"><b>OP ${esc(opN(q.p))}</b> ${esc(q.p.descricao)}<span class="dots">${(q.p.cores||[]).map(c=>`<i title="${esc(c)}" style="background:${SW[corBase(c)]||"transparent"}"></i>`).join("")}</span></span><span class="mv"><button class="small lockbtn st ${L?"on":""}" data-lock="${esc(q.p.id)}" title="${L?"Marcar como não programado":"Marcar como programado"}" aria-label="OP ${esc(opN(q.p))}: ${L?"programado":"não programado"}">${L?LOCK_I+"Programado":UNLOCK_I+(reprog(q.p.id)?"Reprogr.":"Não prog.")}</button><button class="small okbtn" data-prod="${esc(q.p.id)}" title="Marcar como produzido" aria-label="Marcar OP ${esc(opN(q.p))} como produzido">✓</button><button class="small" data-mv="-1" data-id="${esc(q.p.id)}" aria-label="Subir" ${i===0||L?"disabled":""}>▲</button><button class="small" data-mv="1" data-id="${esc(q.p.id)}" aria-label="Descer" ${i===last||L?"disabled":""}>▼</button></span></li>`; }).join("")}</ol>
+    <p class="sub" style="margin:0">Segure o <b>⠿</b> e arraste a OP para a posição desejada (funciona também com OPs Programadas). Use ✓ quando a OP for produzida. Clique no cadeado para marcar a OP como <b>Programado</b>: ela fica fixa na posição quando entrarem OPs novas. Sem o cadeado, a OP aparece como <b>Não programado</b>.</p>
+    <ol class="fila-l" id="fila">${ag.seq.map((q,i)=>{ const L = travada(cod,q.p.id); const f = ag.info[q.p.id]; const late = q.p.entrega && f && f.fim && f.fim.data > q.p.entrega;
+      return `<li class="${L?"locked":""}" data-id="${esc(q.p.id)}"><span class="grip" title="Segure e arraste para mudar a posição" aria-label="Arrastar OP ${esc(opN(q.p))}">⠿</span><span class="mono n">${q.n}</span>
+      <span class="t ft"><b>OP ${esc(opN(q.p))}</b> ${esc(q.p.descricao||"")}<span class="dots">${(q.p.cores||[]).map(c=>`<i title="${esc(c)}" style="background:${SW[corBase(c)]||"transparent"}"></i>`).join("")}</span><small>${esc(q.p.cliente||"")}</small></span>
+      <span class="fq">${fmtN(saldo(q.p))} cx</span>
+      <span class="fw">${f && f.ini ? `${dShort(f.ini.data)} ${hm(f.ini.h)} → ${f.fim ? (f.fim.data!==f.ini.data?dShort(f.fim.data)+" ":"")+hm(f.fim.h) : "—"}` : "sem data"}</span>
+      <span class="fe${late?" late":""}" title="Entrega">${q.p.entrega ? "Ent. "+dShort(q.p.entrega) : "—"}</span>
+      <span class="mv"><button class="small lockbtn st ${L?"on":""}" data-lock="${esc(q.p.id)}" title="${L?"Marcar como não programado":"Marcar como programado"}" aria-label="OP ${esc(opN(q.p))}: ${L?"programado":"não programado"}">${L?LOCK_I+"Programado":UNLOCK_I+(reprog(q.p.id)?"Reprogr.":"Não prog.")}</button><button class="small okbtn" data-prod="${esc(q.p.id)}" title="Marcar como produzido" aria-label="Marcar OP ${esc(opN(q.p))} como produzido">✓</button></span></li>`; }).join("")}</ol>
     <div class="notice err" id="filaMsg" hidden></div>
     ${man?`<div><button data-act="auto">Voltar à ordem automática</button></div>`:""}
     ${(()=>{ const n = S.pedidos.filter(p=>p.maquina===cod && S.apont[p.id] && S.apont[p.id].feito).length; return n ? `<a class="sub" href="#produzidas" style="margin:0">${n} OP${n===1?"":"s"} produzida${n===1?"":"s"} nesta máquina · ver em Ordens produzidas</a>` : ""; })()}
@@ -678,8 +706,11 @@ function agendarTrimbox(cod, inicio, seq){
   const dias = [...porDia.entries()].filter(([d])=>d >= inicio || true).sort((x,y)=>x[0].localeCompare(y[0])).map(([data, blocks])=>({data, blocks:blocks.sort((x,y)=>x.a-y.a)}));
   return {dias, semData:[], seq:queue, info, trimbox:true};
 }
+/* hora de início da produção (por máquina) e paradas */
+const inicioEf = cod => { const s = S.inicioMaq[cod]; return s && s.data && s.data >= todayISO() && s.h!=null ? s : null; };
+const cortarIv = (iv, a, b) => { const out = []; for (const [x,y] of iv){ if (b<=x || a>=y){ out.push([x,y]); continue; } if (a>x) out.push([x,a]); if (b<y) out.push([b,y]); } return out.filter(([x,y])=>y-x>0.01); };
 function agendar(cod, inicio){
-  if (window.APP_TESTE && S.maquinas[cod]){ const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
+  if (window.APP_TESTE && S.maquinas[cod] && !inicioEf(cod) && !(S.paradas[cod]||[]).length){ const pend = S.pedidos.filter(p=>p.maquina===cod && !(S.apont[p.id]&&S.apont[p.id].feito));
     if (pend.length && pend.every(p=>tbMin(p.tbInicio) && tbMin(p.tbFim))){ const seq = ordenar(cod, pend);
       const tbOrd = [...pend].sort((x,y)=>String(x.tbInicio).localeCompare(String(y.tbInicio))).map(p=>p.id);
       if (seq.every((s,i)=>s.p.id===tbOrd[i])) return agendarTrimbox(cod, inicio, seq); } }
@@ -699,6 +730,9 @@ function agendar(cod, inicio){
     const blocks = [];
     // intervalos livres do dia
     let iv = turnos.map(t=>[...t]);
+    { const st = inicioEf(cod); if (st && d.data < st.data) continue;
+      if (st && d.data===st.data){ iv = iv.map(([a,b])=>[Math.max(a,st.h),b]).filter(([a,b])=>b-a>0.01); if (!iv.length) continue; }
+      for (const pa of (S.paradas[cod]||[]).filter(x=>x.data===d.data)){ iv = cortarIv(iv, pa.ini, pa.fim); blocks.push({t:"stop", a:pa.ini, b:pa.fim, label:"Parada · "+(pa.motivo||"sem motivo"), parada:pa}); } }
     const take = (min, type, extra) => { // consome 'min' minutos dos intervalos do começo
       const parts=[]; let need=min;
       while (need>0.0001 && iv.length){
@@ -1164,7 +1198,7 @@ async function gerarRelatorio(){
     for (const x of d.blocks){
       if (x.t==="prod"){ const p=x.q.p; const parcial = x.qtd < p.quantidade;
         body.push({k:"prod", row:[String(x.q.n)+(travada(cod,p.id)?"":" *"), hm(x.a), hm(x.b), opN(p), (p.descricao||"—")+(p.codigo?`\nCód. ${p.codigo}`:"")+(travada(cod,p.id)?"":"\nNÃO PROGRAMADO"), p.cliente||"—", p.modelo||"—", p.onda||"—", med(p), ch(p), (p.cores||[]).join(", ")||"Sem impressão", fmtN(x.qtd)+(parcial?`\nde ${fmtN(p.quantidade)}`:""), dShort(p.entrega), hm(x.b-x.a)]}); }
-      else { const lab = x.t==="inicio" ? "INÍCIO DE TURNO" : x.t==="limpeza" ? "LIMPEZA" : x.t==="break" ? "INTERVALO" : x.t==="espera" ? x.label.toUpperCase() : `SETUP · OP ${opN(x.q.p)}`;
+      else { const lab = x.t==="inicio" ? "INÍCIO DE TURNO" : x.t==="limpeza" ? "LIMPEZA" : x.t==="break" ? "INTERVALO" : x.t==="espera" ? x.label.toUpperCase() : x.t==="stop" ? x.label.toUpperCase() : `SETUP · OP ${opN(x.q.p)}`;
         body.push({k:x.t, row:["", hm(x.a), hm(x.b), {content:lab, colSpan:10}, hm(x.b-x.a)]}); }
     }
     const cxDia = d.blocks.filter(x=>x.t==="prod").reduce((s,x)=>s+x.qtd,0);
@@ -1378,13 +1412,14 @@ function viewSequencia(){
   for (const d of ag.dias){
     rows += `<tr class="day-h"><td colspan="9">${dow(d.data)}, ${dBR(d.data)}</td></tr>`;
     { const cd = S.calendario.find(x=>x.data===d.data); const ts = (cd&&cd.turnos||[]); const s0 = Math.min(...ts.map(t=>t.ini), ...d.blocks.map(x=>x.a)), s1 = Math.max(...ts.map(t=>t.fim), ...d.blocks.map(x=>x.b)); const span = Math.max(1, s1-s0);
-      const segs = d.blocks.filter(x=>x.t!=="break").map(x=>{ const l=(x.a-s0)/span*100, w=(x.b-x.a)/span*100; const lab = x.t==="prod" ? String(x.q.n) : x.t==="setup" ? "S" : x.t==="inicio" ? "IT" : x.t==="espera" ? "E" : "L"; const tip = x.t==="prod" ? `${x.q.n} · ${opN(x.q.p)} ${x.q.p.descricao} · ${hm(x.a)}–${hm(x.b)}` : `${x.label||"Setup"} · ${hm(x.a)}–${hm(x.b)}`; return `<span class="g-${x.t}" style="left:${l}%;width:${w}%" title="${esc(tip)}">${w>2.2?lab:""}</span>`; }).join("");
+      const segs = d.blocks.filter(x=>x.t!=="break").map(x=>{ const l=(x.a-s0)/span*100, w=(x.b-x.a)/span*100; const lab = x.t==="prod" ? String(x.q.n) : x.t==="setup" ? "S" : x.t==="inicio" ? "IT" : x.t==="espera" ? "E" : x.t==="stop" ? "P" : "L"; const tip = x.t==="prod" ? `${x.q.n} · ${opN(x.q.p)} ${x.q.p.descricao} · ${hm(x.a)}–${hm(x.b)}` : `${x.label||"Setup"} · ${hm(x.a)}–${hm(x.b)}`; return `<span class="g-${x.t}" style="left:${l}%;width:${w}%" title="${esc(tip)}">${w>2.2?lab:""}</span>`; }).join("");
       rows += `<tr class="gantt"><td colspan="9"><div class="gbar">${segs}</div><div class="gaxis"><span>${hm(s0)}</span><span>${hm(s1)}</span></div></td></tr>`; }
     for (const b of d.blocks){
       const t = `<td class="mono">${hm(b.a)}</td><td class="mono">${hm(b.b)}</td>`;
       if (b.t==="inicio") rows += `<tr class="row-start">${t}<td colspan="7">${b.label} · ${hm(b.b-b.a)}</td></tr>`;
       else if (b.t==="limpeza") rows += `<tr class="row-clean">${t}<td colspan="7">${b.label} · ${hm(b.b-b.a)}</td></tr>`;
       else if (b.t==="break") rows += `<tr class="row-break">${t}<td colspan="7">Intervalo</td></tr>`;
+      else if (b.t==="stop") rows += `<tr class="row-stop">${t}<td colspan="7">⛔ ${esc(b.label)} · ${hm(b.b-b.a)}</td></tr>`;
       else if (b.t==="espera") rows += `<tr class="row-wait">${t}<td colspan="7">⏳ ${esc(b.label)} · ${hm(b.b-b.a)}</td></tr>`;
       else if (b.t==="setup") rows += `<tr class="row-setup">${t}<td class="mono">${b.q.n}</td><td colspan="6">Setup para OP ${esc(opN(b.q.p))} · ${esc(b.q.p.descricao)}</td></tr>`;
       else { const p=b.q.p; const f=ag.info[p.id]; const late = p.entrega && f && f.fim && f.fim.data>p.entrega;
@@ -1398,7 +1433,10 @@ function viewSequencia(){
   <div class="panel controls">
     <button class="btn" data-act="detalhes" aria-expanded="${!!UI.det}" style="align-self:flex-end">${UI.det?"Ocultar detalhes":"Detalhes"}${atras?` <span class="pill bad" style="margin-left:4px">${atras} em atraso</span>`:""}</button>
     <label class="f" style="margin-left:auto">Início da programação<input type="date" id="ini" value="${ini}"></label>
+    ${(()=>{ const st = inicioEf(UI.maq); return `<label class="f">Hora de início${st&&st.data!==ini?` <small>(${dShort(st.data)})</small>`:""}<input type="time" id="iniH" value="${st?hm(st.h):""}" ${canEdit?"":"disabled"} title="Vazio = início do turno do calendário"></label>`; })()}
+    ${canEdit?`<button class="btn" data-act="parada" style="align-self:flex-end">⛔ Inserir parada</button>`:""}
   </div>
+  ${(S.paradas[UI.maq]||[]).filter(p=>p.data>=todayISO()).length ? `<div class="paradas"><span class="sub" style="margin:0">Paradas:</span>${(S.paradas[UI.maq]||[]).filter(p=>p.data>=todayISO()).sort((x,y)=>(x.data+x.ini).localeCompare(y.data+y.ini)).map(p=>`<span class="parchip">⛔ ${dShort(p.data)} ${hm(p.ini)}–${hm(p.fim)} · ${esc(p.motivo||"")}${canEdit?`<button data-delpar="${esc(p.id)}" title="Remover parada" aria-label="Remover parada">×</button>`:""}</span>`).join("")}</div>` : ""}
   ${UI.det?`<div class="kpis">
     <div class="kpi"><span>Máquina</span><b>${esc(m.cod)}</b><div class="sub" style="margin:0">${esc(m.nome)}</div></div>
     <div class="kpi"><span>Pedidos na fila</span><b>${ag.seq.length}</b></div>
@@ -1778,7 +1816,7 @@ const minCal = k => { const c = S.calendario.find(x=>x.data===k); return c ? (c.
 const horasDia = k => { const m = minCal(k); if (m>0) return m/60; const g = S.hist && S.hist["hist__horas__"+k]; return g && g.horas>0 ? g.horas : null; };
 async function guardarHoras(dias){ if (!db) return; for (const k of dias){ const m = minCal(k); if (!(m>0)) continue; const id = "hist__horas__"+k; const g = S.hist && S.hist[id]; if (g && Math.abs(g.horas - m/60) < 1e-6) continue; try { await db.collection("apontamentos").doc(id).set({data:k, horas:m/60}); } catch(e){} } }
 /* ---------- Painel da produção (estilo tela de aeroporto) ---------- */
-const PN_ST = {prod:["EM PRODUÇÃO","ok"], setup:["SETUP","warn"], limpeza:["LIMPEZA","info"], inicio:["LIMPEZA","info"], espera:["AGUARD. IMPRESSORA","warn"], "break":["INTERVALO","mute"], parada:["SEM PROGRAMAÇÃO","mute"], fora:["FORA DE TURNO","mute"]};
+const PN_ST = {stop:["PARADA","bad"], prod:["EM PRODUÇÃO","ok"], setup:["SETUP","warn"], limpeza:["LIMPEZA","info"], inicio:["LIMPEZA","info"], espera:["AGUARD. IMPRESSORA","warn"], "break":["INTERVALO","mute"], parada:["SEM PROGRAMAÇÃO","mute"], fora:["FORA DE TURNO","mute"]};
 const pnAbs = (data, h) => dObj(data).getTime()/60000 + h;
 function painelMaq(cod){
   const agora = new Date(), hoje = todayISO(), nm = agora.getHours()*60 + agora.getMinutes() + agora.getSeconds()/60;
@@ -1796,7 +1834,7 @@ function painelMaq(cod){
   const inf = atual ? info[atual.id] : null;
   let pct = null; if (st==="prod" && inf && inf.ini && inf.fim){ const a = pnAbs(inf.ini.data, inf.ini.h), b = pnAbs(inf.fim.data, inf.fim.h); if (b > a) pct = Math.max(0, Math.min(100, (pnAbs(hoje,nm)-a)/(b-a)*100)); }
   if (!atual && futuros.length && st==="fora") return {cod, st, atual:null, prox: futuros[0].b.q.p, proxInf: info[futuros[0].b.q.p.id], inf:null, pct:null};
-  return {cod, st, atual, inf, pct, prox, proxInf: prox ? info[prox.id] : null};
+  return {cod, st, atual, inf, pct, prox, proxInf: prox ? info[prox.id] : null, motivo: cur && cur.t==="stop" ? cur.label : null};
 }
 const pnHora = x => !x || x.h==null ? `<span class="pn-t">--:--</span>` : `${x.data!==todayISO()?`<small>${dShort(x.data)}</small>`:""}<span class="pn-t">${hm(x.h)}</span>`;
 function painelSeq(cod){
@@ -1821,7 +1859,7 @@ function viewPainel(){
       <div class="pn-maq" data-l="Máquina"><b>${esc(m.cod)}</b><small>${esc(m.nome||m.tipo||"")}</small></div>
       <div class="pn-st" data-l="Status"><span class="pn-pill ${cls}">${r.st==="prod"?`<i class="pn-dot"></i>`:""}${lab}</span></div>
       <div class="pn-op" data-l="OP">${p ? `<b>${esc(opN(p))}</b>` : `<span class="pn-nada">—</span>`}</div>
-      <div class="pn-prod" data-l="Produto">${p ? `<span>${esc(p.descricao||"")}</span><small>${esc(p.cliente||"")}${p.quantidade?` · ${fmtN(saldo(p))} cx`:""}</small>${r.pct!=null?`<div class="pn-bar"><i style="width:${r.pct.toFixed(1)}%"></i></div>`:""}` : `<span class="pn-nada">Nenhuma OP agora</span>`}</div>
+      <div class="pn-prod" data-l="Produto">${p ? `<span>${esc(p.descricao||"")}</span><small>${esc(p.cliente||"")}${p.quantidade?` · ${fmtN(saldo(p))} cx`:""}</small>${r.pct!=null?`<div class="pn-bar"><i style="width:${r.pct.toFixed(1)}%"></i></div>`:""}` : (r.motivo ? `<span>${esc(r.motivo)}</span>` : `<span class="pn-nada">Nenhuma OP agora</span>`)}</div>
       <div class="pn-h" data-l="Início">${p ? pnHora(r.inf && r.inf.ini) : `<span class="pn-t">--:--</span>`}</div>
       <div class="pn-h" data-l="Término">${p ? pnHora(r.inf && r.inf.fim) : `<span class="pn-t">--:--</span>`}</div>
       <div class="pn-nx" data-l="Próxima">${r.prox ? `<b>${esc(opN(r.prox))}</b><small>${r.proxInf && r.proxInf.ini ? (r.proxInf.ini.data!==todayISO()?dShort(r.proxInf.ini.data)+" ":"")+hm(r.proxInf.ini.h) : "sem data"}</small>` : `<span class="pn-nada">—</span>`}</div>
@@ -1967,6 +2005,9 @@ app.addEventListener("click", async e => {
   if (b.dataset.maq){ UI.maq=b.dataset.maq; saveUI(); location.hash = "#sequencia/"+encodeURIComponent(b.dataset.maq); return; }
   if (b.dataset.act==="auto"){ salvarOrdem(UI.maq, null); return; }
   if (b.dataset.lock){ alternarTrava(UI.maq, b.dataset.lock); return; }
+  if (b.dataset.act==="parada"){ const d = UI.inicio || firstDay(); document.getElementById("parM").textContent = "Máquina "+UI.maq+" · a programação é recalculada sem esse horário.";
+    document.getElementById("parD").value = d; document.getElementById("parI").value = ""; document.getElementById("parF").value = ""; document.getElementById("parMot").value = ""; document.getElementById("parErr").hidden = true; document.getElementById("mdlPar").hidden = false; document.getElementById("parI").focus(); return; }
+  if (b.dataset.delpar){ S.paradas[UI.maq] = (S.paradas[UI.maq]||[]).filter(p=>p.id!==b.dataset.delpar); render(); gravarOrdem(UI.maq); return; }
   if (b.dataset.mv){ const ids=filaIds(); const i=ids.indexOf(b.dataset.id); const d=Number(b.dataset.mv); let j=i+d; while (j>=0 && j<ids.length && travada(UI.maq, ids[j])) j+=d; if (i<0||j<0||j>=ids.length) return; [ids[i],ids[j]]=[ids[j],ids[i]]; salvarOrdem(UI.maq, ids); return; }
   if (b.dataset.feito) toggleFeito(b);
   if (b.dataset.prod) abrirApontar(b.dataset.prod);
@@ -2029,6 +2070,7 @@ app.addEventListener("input", e => { if (e.target.id==="q"){ UI.q=e.target.value
 app.addEventListener("change", e => {
   const t=e.target;
   if (t.id==="ini"){ UI.inicio=t.value||null; render(); }
+  if (t.id==="iniH" && canEdit && UI.maq){ const h = toMin(t.value); if (h==null) delete S.inicioMaq[UI.maq]; else S.inicioMaq[UI.maq] = {data: UI.inicio || firstDay(), h}; render(); gravarOrdem(UI.maq); }
   if (t.id==="vCli"){ UI.vCli=t.value; render(); }
   if (t.id==="vSt"){ UI.vSt=t.value; render(); }
   if (t.id==="cMaq"){ UI.cMaq=t.value; saveUI(); render(); }
@@ -2057,6 +2099,24 @@ app.addEventListener("dragover", e => { const li=e.target.closest && e.target.cl
 app.addEventListener("drop", e => { const li=e.target.closest && e.target.closest("#fila li"); if (!li || !dragId) return; e.preventDefault();
   const after = li.classList.contains("over-bottom"); const ids=filaIds().filter(x=>x!==dragId); let k=ids.indexOf(li.dataset.id); if (li.dataset.id===dragId){ dragId=null; clearOver(); return; }
   ids.splice(after?k+1:k, 0, dragId); dragId=null; clearOver(); salvarOrdem(UI.maq, ids); });
+/* arrastar pela alça ⠿ (mouse e toque); vale também para OPs Programadas: o cadeado acompanha a nova posição */
+let pDrag = null;
+app.addEventListener("pointerdown", e => { const g = e.target.closest && e.target.closest("#fila .grip"); if (!g || !canEdit) return; const li = g.closest("li"); e.preventDefault();
+  pDrag = {li, id:li.dataset.id, antes:filaIds().join("|"), y:e.clientY}; li.classList.add("dragging"); try { g.setPointerCapture(e.pointerId); } catch(_){} });
+app.addEventListener("pointermove", e => { if (!pDrag) return; e.preventDefault(); const ol = pDrag.li.parentNode; const y = e.clientY;
+  const itens = [...ol.children].filter(x=>x!==pDrag.li); let antes = null; for (const x of itens){ const r = x.getBoundingClientRect(); if (y < r.top + r.height/2){ antes = x; break; } }
+  if (antes !== pDrag.li.nextSibling) ol.insertBefore(pDrag.li, antes);
+  if (y < 70) window.scrollBy(0, -14); else if (y > window.innerHeight - 70) window.scrollBy(0, 14); });
+const fimDrag = () => { if (!pDrag) return; const d = pDrag; pDrag = null; d.li.classList.remove("dragging"); const ids = filaIds(); if (ids.join("|")===d.antes) return;
+  const tv = {}; const ant = S.travas[UI.maq]||{}; ids.forEach((id,i)=>{ if (Object.prototype.hasOwnProperty.call(ant,id)) tv[id] = i; });
+  salvarOrdem(UI.maq, ids, tv); };
+app.addEventListener("pointerup", fimDrag); app.addEventListener("pointercancel", fimDrag);
+document.getElementById("parX").onclick = () => { document.getElementById("mdlPar").hidden = true; };
+document.getElementById("parOk").onclick = () => { const err = document.getElementById("parErr"); const d = document.getElementById("parD").value, a = toMin(document.getElementById("parI").value), b = toMin(document.getElementById("parF").value), mot = document.getElementById("parMot").value.trim();
+  const falha = t => { err.textContent = t; err.hidden = false; };
+  if (!d) return falha("Escolha a data."); if (a==null || b==null) return falha("Informe a hora de início e de fim."); if (b <= a) return falha("O fim tem que ser depois do início."); if (!mot) return falha("Informe o motivo da parada.");
+  const l = (S.paradas[UI.maq]||[]).slice(); l.push({id: Date.now().toString(36), data:d, ini:a, fim:b, motivo:mot}); S.paradas[UI.maq] = l;
+  document.getElementById("mdlPar").hidden = true; render(); gravarOrdem(UI.maq); toast(`Parada inserida: ${dShort(d)} ${hm(a)}–${hm(b)} · ${mot}`); };
 /* Gantt: arrastar uma OP sobre outra da mesma máquina muda a sequência */
 let gDrag = null;
 app.addEventListener("dragstart", e => { const b = e.target.closest && e.target.closest(".gt-b[draggable]"); if (!b) return; gDrag = {id:b.dataset.gid, m:b.dataset.gm}; try{ e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", gDrag.id); }catch(_){} });
@@ -2179,7 +2239,7 @@ async function entrar(session){
   db.collection("maquinas").onSnapshot(s=>{ const o={}; s.docs.forEach(x=>{ const v=x.data(); o[v.cod]=v; }); S.maquinas=o; S.loaded.m=true; done(); }, err);
   db.collection("calendario").onSnapshot(s=>{ S.calendario=s.docs.map(x=>x.data()); S.loaded.c=true; done(); }, err);
   db.collection("pedidos").onSnapshot(s=>{ S.pedidos=s.docs.map(x=>({...x.data(), id:x.id})); S.loaded.p=true; done(); }, err);
-  db.collection("ordem").onSnapshot(s=>{ const o={}, t={}; s.docs.forEach(x=>{ const v=x.data(); if (v && v.maquina){ o[v.maquina]=v.ids||[]; t[v.maquina]=v.travas||{}; } }); S.ordem=o; S.travas=t; schedule(); }, ()=>{});
+  db.collection("ordem").onSnapshot(s=>{ const o={}, t={}, im={}, pa={}; s.docs.forEach(x=>{ const v=x.data(); if (v && v.maquina){ o[v.maquina]=v.ids||[]; t[v.maquina]=v.travas||{}; if (v.inicio) im[v.maquina]=v.inicio; if ((v.paradas||[]).length) pa[v.maquina]=v.paradas; } }); S.ordem=o; S.travas=t; S.inicioMaq=im; S.paradas=pa; schedule(); }, ()=>{});
   db.collection("apontamentos").onSnapshot(s=>{ const o={}, h={}; s.docs.forEach(x=>{ if (x.id.startsWith("hist__")) h[x.id]=x.data(); else o[x.id]=x.data(); }); S.apont=o; S.hist=h; schedule(); }, ()=>{});
   db.doc("config/importacao").onSnapshot(s=>{ S.imp = s.exists ? s.data() : null; schedule(); }, ()=>{});
 }
