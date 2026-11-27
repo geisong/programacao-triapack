@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261127160003";</script>
+<script>window.APP_VERSAO="20261127160627";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -1711,7 +1711,7 @@ function viewConsulta(){
     return `<tr class="op ${x.done?"done":""}" data-op="${esc(p.id)}" tabindex="0" aria-label="Abrir OP ${esc(opN(p))}">
       <td class="mono num">${x.n||"✓"}</td><td class="mono"><b>${esc(opN(p))}</b></td><td>${esc(p.descricao)}<div class="st-m">${x.done?`<span class="pill ok">Produzido</span>`:stPill(p.maquina,p.id)}</div></td><td>${esc(p.cliente)}</td><td>${dots(p.cores)}</td>
       <td class="num">${fmtN(x.done?p.quantidade:saldo(p))}${!x.done&&produzido(p)?`<div class="sub" style="margin:0">de ${fmtN(p.quantidade)}</div>`:""}</td><td class="mono">${when(x)}</td><td class="mono">${whenF(x)}</td>
-      <td>${x.done?`<span class="pill ok">Produzido</span>`:(!travada(p.maquina,p.id)?`<span class="pill np">${reprog(p.id)?"Reprogramar saldo":"Não programado"}</span>`:(late?`<span class="pill bad">Programado · atrasa</span>`:`<span class="pill acc">Programado</span>`))}</td></tr>`; };
+      <td>${x.done?`<span class="pill ok">Produzido</span>`:(!travada(p.maquina,p.id)?`<span class="pill np">${reprog(p.id)?"Reprogramar saldo":"Não programado"}</span>`:(x.inf && x.inf.fim && pnAbs(x.inf.fim.data, x.inf.fim.h) <= pnAbs(todayISO(), new Date().getHours()*60+new Date().getMinutes()) ? `<span class="pill bad">OP atrasada</span>` : late?`<span class="pill bad">Programado · atrasa</span>`:`<span class="pill acc">Programado</span>`))}</td></tr>`; };
   const porMaq = ms.map(m=>({m, itens:list.filter(x=>x.p.maquina===m.cod)})).filter(g=>g.itens.length);
   return `
   <div class="head"><div><h1>Consulta da produção</h1><p class="sub">${impLine()} · Clique na OP para ver todas as informações.</p></div>${atualizarBtn()}</div>
@@ -2019,7 +2019,7 @@ function painelSeq(cod){
   const prox = rows.find(r=>r.st==="prog"); if (prox) prox.st = "proxima";
   return {pm, rows, passadas: 0};
 }
-const PN_SQ = {feitaPrev:["AGUARD. APONTAMENTO","bad"], prod:["EM PRODUÇÃO","ok"], setup:["SETUP","warn"], espera:["AGUARD. IMPRESSORA","warn"], proxima:["PRÓXIMA","info"], prog:["PROGRAMADA","mute"], semdata:["SEM DATA","bad"]};
+const PN_SQ = {feitaPrev:["OP ATRASADA","bad"], prod:["EM PRODUÇÃO","ok"], setup:["SETUP","warn"], espera:["AGUARD. IMPRESSORA","warn"], proxima:["PRÓXIMA","info"], prog:["PROGRAMADA","mute"], semdata:["SEM DATA","bad"]};
 function viewPainel(){
   const sel = UI.pnMaq && S.maquinas[UI.pnMaq] ? UI.pnMaq : "";
   const botoes = `<div class="pn-btns" role="group" aria-label="Máquina">${[["","Todas as máquinas"]].concat(maqList().map(m=>[m.cod,m.cod])).map(([c,l])=>`<button class="pn-b" data-pnmaq="${esc(c)}" aria-pressed="${sel===c}">${esc(l)}</button>`).join("")}</div>`;
