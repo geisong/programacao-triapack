@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack</title>
-<script>window.APP_VERSAO="20261127144217";</script>
+<script>window.APP_VERSAO="20261127160003";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -2013,11 +2013,11 @@ function painelSeq(cod){
   const rows = ag.seq.filter(q=>travada(cod, q.p.id)).map(q=>{ const inf = info[q.p.id]; const a = inf && inf.ini ? pnAbs(inf.ini.data, inf.ini.h) : null, b = inf && inf.fim ? pnAbs(inf.fim.data, inf.fim.h) : null;
     let st = q.p.id===curId ? pm.st : (b!=null && b <= now) ? "feitaPrev" : a==null ? "semdata" : "prog";
     return {q, inf, st, b}; });
-  const vis = rows.filter(r=>r.st!=="feitaPrev");
-  const prox = vis.find(r=>r.st==="prog"); if (prox && !curId) prox.st = "proxima"; else if (prox) prox.st = "proxima";
-  return {pm, rows:vis, passadas: rows.length - vis.length};
+  /* as OPs com término previsto antes de agora continuam na lista (aguardando apontamento), igual à Consulta da produção */
+  const prox = rows.find(r=>r.st==="prog"); if (prox) prox.st = "proxima";
+  return {pm, rows, passadas: 0};
 }
-const PN_SQ = {prod:["EM PRODUÇÃO","ok"], setup:["SETUP","warn"], espera:["AGUARD. IMPRESSORA","warn"], proxima:["PRÓXIMA","info"], prog:["PROGRAMADA","mute"], semdata:["SEM DATA","bad"]};
+const PN_SQ = {feitaPrev:["AGUARD. APONTAMENTO","bad"], prod:["EM PRODUÇÃO","ok"], setup:["SETUP","warn"], espera:["AGUARD. IMPRESSORA","warn"], proxima:["PRÓXIMA","info"], prog:["PROGRAMADA","mute"], semdata:["SEM DATA","bad"]};
 function viewPainel(){
   const sel = UI.pnMaq && S.maquinas[UI.pnMaq] ? UI.pnMaq : "";
   const botoes = `<div class="pn-btns" role="group" aria-label="Máquina">${[["","Todas as máquinas"]].concat(maqList().map(m=>[m.cod,m.cod])).map(([c,l])=>`<button class="pn-b" data-pnmaq="${esc(c)}" aria-pressed="${sel===c}">${esc(l)}</button>`).join("")}</div>`;
@@ -2070,7 +2070,7 @@ function viewIndicadores(){
   const sel = decodeURIComponent(location.hash.split("/")[1]||"");
   if (!sel || !S.maquinas[sel]){
     const hoje = todayISO(), ini7 = isoLocal(Date.now()-6*864e5);
-    return `<div class="head"><div><h1>Indicadores</h1><p class="sub">O que está sendo produzido agora, caixas por dia e peças por hora.</p></div></div>${viewPainel()}<h2 class="pn-h2">Indicadores por máquina</h2>${ms.length ? `<div class="mqs">${ms.map(m=>{ const pd = prodPorDia(m.cod); const t7 = Object.entries(pd).filter(([k])=>k>=ini7&&k<=hoje).reduce((t,[,v])=>t+v,0); return mqBtn(m,{tag:"a", a:`href="#indicadores/${encodeURIComponent(m.cod)}"`}, ` · 7 dias: ${fmtN(t7)} cx produzidas`); }).join("")}</div>` : emptyState()}`;
+    return `<div class="head"><div><h1>Indicadores</h1><p class="sub">O que está sendo produzido agora, caixas por dia e peças por hora.</p></div></div>${viewPainel()}<h2 class="pn-h2">Indicadores por máquina</h2>${ms.length ? `<div class="mqs">${ms.map(m=>{ const pd = prodPorDia(m.cod); const t7 = Object.entries(pd).filter(([k])=>k>=ini7&&k<=hoje).reduce((t,[,v])=>t+v,0); return mqBtn(m,{tag:"a", a:`href="#indicadores/${encodeURIComponent(m.cod)}"`}, ` · 7 dias: ${fmtN(t7)} cx produzidas`, true); }).join("")}</div>` : emptyState()}`;
   }
   const m = S.maquinas[sel], per = UI.dPer||15, hoje = todayISO();
   const pd = prodPorDia(sel);
