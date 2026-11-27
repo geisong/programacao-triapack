@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack</title>
-<script>window.APP_VERSAO="20261127170633";</script>
+<script>window.APP_VERSAO="20261127171130";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -2125,22 +2125,26 @@ function viewInicio(){
 }
 const ICO_OK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.1V12a10 10 0 1 1-5.9-9.1"/><path d="M22 4 12 14l-3-3"/></svg>`;
 function viewProduzidas(){
-  const lista = S.pedidos.filter(p=>S.apont[p.id]&&(S.apont[p.id].feito||produzido(p)>0)).sort((a,b)=>String(S.apont[b.id].em||"").localeCompare(String(S.apont[a.id].em||"")));
   const quando = iso => iso ? new Date(iso).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}) : "—";
-  const porMaq = maqList().map(m=>({m, itens:lista.filter(p=>p.maquina===m.cod)})).filter(g=>g.itens.length);
-  return `<div class="head"><div><h1>Ordens produzidas</h1><p class="sub">${lista.length} OP${lista.length===1?"":"s"} marcada${lista.length===1?"":"s"} como produzida${lista.length===1?"":"s"}. Se marcou por engano, use <b>Desmarcar</b>: a OP volta para a mesma posição da sequência.</p></div></div>
-  ${porMaq.length ? porMaq.map(g=>`<section class="panel" style="padding:0;margin-bottom:16px"><div class="grp-h"><b>${esc(g.m.cod)}</b> <span class="sub" style="margin:0">${esc(g.m.nome||"")} · ${g.itens.length} OP${g.itens.length===1?"":"s"}</span></div>
-    <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx continua na programação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("") : ""}
-  ${movidasHtml()}
-  ${!porMaq.length && !Object.keys(S.prodMov||{}).length ? `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>` : ""}`;
-}
-function movidasHtml(){
-  const ds = Object.entries(S.prodMov||{}).map(([id,d])=>({id, ...d})).sort((a,b)=>String(b.movidoEm||b.em||"").localeCompare(String(a.movidoEm||a.em||"")));
-  if (!ds.length) return "";
-  const quando = iso => iso ? new Date(iso).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}) : "—";
-  return `<section class="panel" style="padding:0;margin-bottom:16px"><div class="grp-h"><b>Na aba Produzido da planilha</b> <span class="sub" style="margin:0">${ds.length} OP${ds.length===1?"":"s"} · já saíram das máquinas</span></div>
-    <ul class="prod-l">${ds.map(d=>`<li><div class="t"><b>OP ${esc(d.op||d.opKey)}</b> · ${esc(d.descricao||"")}<div class="sub" style="margin:2px 0 0">${esc(d.cliente||"")} · ${fmtN(d.quantidade||0)} cx · finalizada em ${quando(d.em)} · estava em ${esc((d.maqs||[]).map(e=>e.maquina+(e.trava!=null?" (Programado)":"")).join(", "))}${d.estado==="restaurar"?` · <b class="late">voltando para as máquinas: falta Gravar na planilha no computador</b>`:""}</div></div>
-      ${d.estado==="restaurar" ? "" : `<button class="small" data-desprod="${esc(d.id)}">Desmarcar</button>`}</li>`).join("")}</ul></section>`;
+  const linhas = [];
+  for (const p of S.pedidos){ const a = S.apont[p.id]; if (!a || !(a.feito || produzido(p)>0)) continue;
+    linhas.push({em:a.em||"", op:opN(p), desc:p.descricao||"", cli:p.cliente||"", maq:p.maquina, qtd: a.feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)}` : `${fmtN(produzido(p))} de ${fmtN(p.quantidade)}`,
+      sit: a.feito ? `<span class="pill ok">Produzida</span>` : `<span class="pill acc">Parcial · saldo ${fmtN(saldo(p))}</span>`,
+      acao: canWrite ? `<button class="small" data-feito="${esc(p.id)}">${a.feito?"Desmarcar":"Desfazer apontamento"}</button>` : ""}); }
+  for (const [id,d] of Object.entries(S.prodMov||{})){
+    for (const e of (d.maqs||[{maquina:"—"}])) linhas.push({em:d.em||d.movidoEm||"", op:d.op||d.opKey, desc:d.descricao||"", cli:d.cliente||"", maq:e.maquina,
+      qtd: e.apont && e.apont.produzido ? `${fmtN(e.apont.produzido)} de ${fmtN((e.pedido||{}).quantidade||d.quantidade||0)}` : fmtN((e.pedido||{}).quantidade||d.quantidade||0),
+      sit: d.estado==="restaurar" ? `<span class="pill warn">Voltando · falta Gravar na planilha</span>` : `<span class="pill ok">Na aba Produzido</span>`,
+      acao: d.estado==="restaurar" ? "" : `<button class="small" data-desprod="${esc(id)}" title="Volta para todas as máquinas em que estava">Desmarcar</button>`}); }
+  linhas.sort((x,y)=>String(y.em).localeCompare(String(x.em)));
+  return `<div class="head"><div><h1>Ordens produzidas</h1><p class="sub">Separadas por máquina, da mais recente para a mais antiga. Se marcou por engano, use <b>Desmarcar</b>: a OP volta para as máquinas, na mesma posição.</p></div></div>
+  ${linhas.length ? (()=>{ const cods = maqList().map(m=>m.cod); const outras = [...new Set(linhas.map(l=>l.maq))].filter(c=>!cods.includes(c));
+    return cods.concat(outras).map(c=>{ const ls = linhas.filter(l=>l.maq===c); if (!ls.length) return ""; const m = S.maquinas[c];
+      return `<section class="panel" style="padding:0;margin-bottom:16px"><div class="grp-h"><b>${esc(c)}</b> <span class="sub" style="margin:0">${esc((m&&m.nome)||"")} · ${ls.length} OP${ls.length===1?"":"s"}</span></div>
+      <div class="scroll"><table class="vcart prodtab"><thead><tr><th>OP</th><th>Produto</th><th>Cliente</th><th class="num">Qtd (cx)</th><th>Situação</th><th>Data</th><th></th></tr></thead><tbody>
+      ${ls.map(l=>`<tr><td class="mono vc-op"><b>${esc(l.op)}</b></td><td>${esc(l.desc)}</td><td data-l="Cliente">${esc(l.cli)}</td><td class="num" data-l="Qtd (cx)">${l.qtd}</td><td data-l="Situação">${l.sit}</td><td class="mono" data-l="Data">${quando(l.em)}</td><td>${l.acao}</td></tr>`).join("")}
+      </tbody></table></div></section>`; }).join(""); })()
+  : `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida, ela aparece aqui.</p></div>`}`;
 }
 const ROUTES = {inicio:viewInicio, gantt:viewGantt, vendas:viewVendas, indicadores:viewIndicadores, produzidas:viewProduzidas, sequencia:viewSequencia, consulta:viewConsulta, maquinas:viewMaquinas, calendario:viewCalendario};
 function route(){ const h = location.hash.replace("#","").split("/")[0]; return ROUTES[h] ? h : "inicio"; }
