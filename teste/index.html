@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261127170115";</script>
+<script>window.APP_VERSAO="20261127170513";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -2075,7 +2075,7 @@ function viewIndicadores(){
   const sel = decodeURIComponent(location.hash.split("/")[1]||"");
   if (!sel || !S.maquinas[sel]){
     const hoje = todayISO(), ini7 = isoLocal(Date.now()-6*864e5);
-    return `<div class="head"><div><h1>Indicadores</h1><p class="sub">O que está sendo produzido agora, caixas por dia e peças por hora.</p></div></div>${viewPainel()}<h2 class="pn-h2">Indicadores por máquina</h2>${ms.length ? `<div class="mqs">${ms.map(m=>{ const pd = prodPorDia(m.cod); const t7 = Object.entries(pd).filter(([k])=>k>=ini7&&k<=hoje).reduce((t,[,v])=>t+v,0); return mqBtn(m,{tag:"a", a:`href="#indicadores/${encodeURIComponent(m.cod)}"`}, ` · 7 dias: ${fmtN(t7)} cx produzidas`, true); }).join("")}</div>` : emptyState()}`;
+    return `<div class="head"><div><h1>Tempo real</h1><p class="sub">O que está sendo produzido agora, caixas por dia e peças por hora.</p></div></div>${viewPainel()}<h2 class="pn-h2">Produção por máquina</h2>${ms.length ? `<div class="mqs">${ms.map(m=>{ const pd = prodPorDia(m.cod); const t7 = Object.entries(pd).filter(([k])=>k>=ini7&&k<=hoje).reduce((t,[,v])=>t+v,0); return mqBtn(m,{tag:"a", a:`href="#indicadores/${encodeURIComponent(m.cod)}"`}, ` · 7 dias: ${fmtN(t7)} cx produzidas`, true); }).join("")}</div>` : emptyState()}`;
   }
   const m = S.maquinas[sel], per = UI.dPer||15, hoje = todayISO();
   const pd = prodPorDia(sel);
@@ -2092,7 +2092,7 @@ function viewIndicadores(){
     return `<div class="db-col" title="${dow(d.k)} ${dBR(d.k)}: ${fmtN(d.q)} cx${d.h?` · ${fmtN(Math.round(d.q/d.h))} pç/h`:""}"><div class="db-track"><div class="db-bar${d.q?"":" zero"}" style="height:${Math.max(hgt, d.q?2:0)}%"><span class="db-v">${d.q?fmtN(d.q):""}</span></div></div><span class="db-d">${dow(d.k).slice(0,3)}<br>${d.k.slice(8,10)}/${d.k.slice(5,7)}</span></div>`; }).join("");
   const linhas = dias.slice().reverse().map(d=>{ const ph = d.h && d.q ? d.q/d.h : null; const e = ph && nom ? ph/nom*100 : null;
     return `<tr${d.q?"":` class="row-break"`}><td class="mono">${dow(d.k).slice(0,3)} ${dBR(d.k)}</td><td class="num"><b>${d.q?fmtN(d.q):"—"}</b></td><td class="num mono">${d.h?hm(d.h*60):"—"}</td><td class="num">${ph?fmtN(Math.round(ph)):"—"}</td><td class="num">${e!=null?`<b style="color:${corEf(e)}">${fmtN(Math.round(e))}%</b>`:"—"}</td></tr>`; }).join("");
-  return `<div class="head"><div><h1>${esc(m.cod)}</h1><p class="sub">Indicadores · ${esc(m.nome||"")}</p></div>
+  return `<div class="head"><div><h1>${esc(m.cod)}</h1><p class="sub">Tempo real · ${esc(m.nome||"")}</p></div>
     <div class="seg" role="group" aria-label="Período">${[7,15,30].map(n=>`<button class="btn" data-dper="${n}" aria-pressed="${per===n}">${n} dias</button>`).join("")}</div></div>
   <div class="kpis">
     <div class="kpi"><span>Caixas produzidas</span><b>${fmtN(tot)}</b><div class="sub" style="margin:0">últimos ${per} dias</div></div>
@@ -2119,7 +2119,7 @@ function viewInicio(){
     <a class="tile" href="#produzidas"><span class="ic">${ICO_OK}</span><span><b>Ordens produzidas</b><small>${(()=>{const n=S.pedidos.filter(p=>S.apont[p.id]&&S.apont[p.id].feito).length+Object.keys(S.prodMov||{}).length; return `${n} OP${n===1?"":"s"} produzida${n===1?"":"s"}`;})()}</small></span></a>
     <a class="tile" href="#vendas"><span class="ic">${ICO_CHAT}</span><span><b>Vendas</b><small>Quando fica pronto um pedido</small></span></a>
     <a class="tile" href="#gantt"><span class="ic">${ICO_GANTT}</span><span><b>Gantt</b><small>Todas as máquinas, 24 horas</small></span></a>
-    <a class="tile" href="#indicadores"><span class="ic">${ICO_DASH}</span><span><b>Indicadores</b><small>Caixas por dia e peças por hora</small></span></a>
+    <a class="tile" href="#indicadores"><span class="ic">${ICO_DASH}</span><span><b>Tempo real</b><small>O que está sendo produzido agora</small></span></a>
     <a class="tile" href="#calendario"><span class="ic">${ICO_CAL}</span><span><b>Calendário</b><small>Dias e turnos de trabalho</small></span></a>
     ${ROUTES.usuarios && typeof ehAdmin==="function" && ehAdmin() ? `<a class="tile" href="#usuarios"><span class="ic">${ICO_USR}</span><span><b>Usuários</b><small>Liberar acesso${(()=>{const n=(usuarios||[]).filter(u=>u.papel==="pendente").length; return n?` · ${n} aguardando`:"";})()}</small></span></a>` : ""}
   </div>`;
