@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack</title>
-<script>window.APP_VERSAO="20261127160627";</script>
+<script>window.APP_VERSAO="20261127170115";</script>
 <link rel="manifest" href="manifest.webmanifest?v=2">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="icons/triapack-touch-180.png">
@@ -771,7 +771,10 @@ function agendar(cod, inicio){
         }
       }
       if (!q.started){
-        if (SU>0){ take(SU).forEach(([a,b])=>blocks.push({t:"setup",a,b,label:"Setup",q})); }
+        /* mesmo código de produto da OP anterior na sequência: sem setup */
+        const ant = qi>0 ? queue[qi-1] : null; const ck = p => normName((p&&p.codigo)||"").replace(/\s+/g,"");
+        q.semSetup = !!(ant && ck(q.p) && ck(q.p)===ck(ant.p));
+        if (SU>0 && !q.semSetup){ take(SU).forEach(([a,b])=>blocks.push({t:"setup",a,b,label:"Setup",q})); }
         q.started = true;
         if (avail()<=0.5) break;
       }
