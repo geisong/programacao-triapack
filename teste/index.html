@@ -6,7 +6,7 @@
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Chão de fábrica · Triapack · TESTE</title>
 <script>window.APP_TESTE=true;</script>
-<script>window.APP_VERSAO="20261126171720";</script>
+<script>window.APP_VERSAO="20261127144217";</script>
 <link rel="icon" type="image/png" sizes="32x32" href="../icons/favicon-32.png?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/triapack-touch-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="../icons/triapack-touch-167.png">
@@ -495,7 +495,7 @@ body{touch-action:manipulation;overflow-x:hidden}
 <label class="fld"><span>Quantidade produzida (caixas)</span><input id="aptQ" type="number" inputmode="numeric" min="1" step="1"></label>
 <fieldset class="fin"><legend>Finalizar a OP?</legend>
 <label><input type="radio" name="aptF" value="sim"> <b>Sim, finalizar</b> <span class="sub" style="margin:0">a OP sai da programação</span></label>
-<label><input type="radio" name="aptF" value="nao"> <b>Não finalizar</b> <span class="sub" style="margin:0" id="aptSaldo">o saldo volta para ser reprogramado</span></label></fieldset>
+<label><input type="radio" name="aptF" value="nao"> <b>Não finalizar</b> <span class="sub" style="margin:0" id="aptSaldo">a OP continua na programação com o saldo</span></label></fieldset>
 <div class="notice err" id="aptMsg" hidden></div>
 <div class="controls" style="justify-content:flex-end"><button data-act="aptCancel">Cancelar</button><button class="primary" data-act="aptOk">Confirmar</button></div></div></div>
 <div class="mdl" id="det" hidden><div class="box" role="dialog" aria-modal="true" aria-labelledby="detT"></div></div>
@@ -595,7 +595,7 @@ const stPill = (cod,id) => semChapa(id) ? `<span class="pill warn">⏳ Aguardand
 const UNLOCK_I = `<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-1.9"/></svg>`;
 const produzido = p => Number(S.apont[p.id] && S.apont[p.id].produzido) || 0;
 const saldo = p => Math.max(0, (Number(p.quantidade)||0) - produzido(p));
-const reprog = id => !!(S.apont[id] && !S.apont[id].feito && S.apont[id].reprogramar);
+const reprog = id => false; /* 27/11: apontamento parcial não tira mais a OP da programação (fica com o saldo, mesma posição e cadeado) */
 const opN = p => (p && (p.op || p.codigo)) || "—";
 const travas = cod => S.travas[cod] || {};
 /* Recebimento de chapa = "Não" na planilha: a OP fica fora da sequência (Aguardando chapa) e não pode ser programada */
@@ -1452,7 +1452,7 @@ async function voltarStatus(docs){
   for (const d of docs){
     for (const e of (d.maqs||[])){ const a = e.apont; let dado = a || null;
       if (a && a.feito){ const parciais = [...(a.parciais||[])]; const ult = parciais.pop(); const tot = Math.max(0,(Number(a.produzido)||0)-(ult?ult.qtd:0));
-        dado = {feito:false, em:new Date().toISOString(), maquina:e.maquina, pos:Number.isInteger(a.pos)?a.pos:0, produzido:tot, parciais, ...(parciais.length?{reprogramar:true}:{})};
+        dado = {feito:false, em:new Date().toISOString(), maquina:e.maquina, pos:Number.isInteger(a.pos)?a.pos:0, produzido:tot, parciais};
         if (!parciais.length && !tot) dado = null; }
       if (dado) await db.collection("apontamentos").doc(e.id).set(dado); else await db.collection("apontamentos").doc(e.id).delete().catch(()=>{});
       for (const h of hs.docs) if (h.id.startsWith("hist__"+e.id+"__")) await db.collection("apontamentos").doc(h.id).delete().catch(()=>{}); // não contar duas vezes nos Indicadores
@@ -2128,7 +2128,7 @@ function viewProduzidas(){
   const porMaq = maqList().map(m=>({m, itens:lista.filter(p=>p.maquina===m.cod)})).filter(g=>g.itens.length);
   return `<div class="head"><div><h1>Ordens produzidas</h1><p class="sub">${lista.length} OP${lista.length===1?"":"s"} marcada${lista.length===1?"":"s"} como produzida${lista.length===1?"":"s"}. Se marcou por engano, use <b>Desmarcar</b>: a OP volta para a mesma posição da sequência.</p></div></div>
   ${porMaq.length ? porMaq.map(g=>`<section class="panel" style="padding:0;margin-bottom:16px"><div class="grp-h"><b>${esc(g.m.cod)}</b> <span class="sub" style="margin:0">${esc(g.m.nome||"")} · ${g.itens.length} OP${g.itens.length===1?"":"s"}</span></div>
-    <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx em reprogramação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("") : ""}
+    <ul class="prod-l">${g.itens.map(p=>`<li><div class="t"><b>OP ${esc(opN(p))}</b> · ${esc(p.descricao)}<div class="sub" style="margin:2px 0 0">${esc(p.cliente||"")} · ${S.apont[p.id].feito ? `${fmtN(produzido(p)||p.quantidade)} de ${fmtN(p.quantidade)} cx · finalizada em ${quando(S.apont[p.id].em)} · era a ${(S.apont[p.id].pos|0)+1}ª da fila` : `<b>parcial</b>: ${fmtN(produzido(p))} de ${fmtN(p.quantidade)} cx · saldo de ${fmtN(saldo(p))} cx continua na programação · último apontamento ${quando(S.apont[p.id].em)}`}</div></div>${canWrite?`<button class="small" data-feito="${esc(p.id)}">${S.apont[p.id].feito?"Desmarcar como produzida":"Desfazer último apontamento"}</button>`:""}</li>`).join("")}</ul></section>`).join("") : ""}
   ${movidasHtml()}
   ${!porMaq.length && !Object.keys(S.prodMov||{}).length ? `<div class="panel empty"><h2>Nenhuma OP produzida</h2><p class="sub">Quando uma OP for marcada como produzida na Consulta da produção, ela aparece aqui.</p></div>` : ""}`;
 }
@@ -2210,7 +2210,7 @@ function abrirApontar(id){
   const d=document.getElementById("apt"); d.dataset.id=id;
   d.querySelector("#aptOP").innerHTML = `OP <b>${esc(opN(p))}</b> · ${esc(p.descricao)} · ${esc(p.maquina)}<br>Quantidade da OP: <b>${fmtN(p.quantidade)}</b> cx${produzido(p)?` · já produzido: <b>${fmtN(produzido(p))}</b> · saldo: <b>${fmtN(saldo(p))}</b>`:""}`;
   const q=d.querySelector("#aptQ"); q.value = saldo(p) || ""; d.querySelector("#aptMsg").hidden=true;
-  const upd = () => { const v=Number(q.value)||0; const r=Math.max(0, saldo(p)-v); d.querySelector("#aptSaldo").textContent = r ? `o saldo de ${fmtN(r)} cx volta para ser reprogramado` : "o saldo volta para ser reprogramado"; if (!d.dataset.mexeu) d.querySelector(`[name=aptF][value=${v>=saldo(p)?"sim":"nao"}]`).checked = true; };
+  const upd = () => { const v=Number(q.value)||0; const r=Math.max(0, saldo(p)-v); d.querySelector("#aptSaldo").textContent = r ? `a OP continua na programação, na mesma posição, com saldo de ${fmtN(r)} cx` : "a OP continua na programação com o saldo"; if (!d.dataset.mexeu) d.querySelector(`[name=aptF][value=${v>=saldo(p)?"sim":"nao"}]`).checked = true; };
   delete d.dataset.mexeu; q.oninput = upd; d.querySelectorAll("[name=aptF]").forEach(r=>r.onchange=()=>{ d.dataset.mexeu="1"; }); upd();
   d.hidden=false; setTimeout(()=>q.focus(), 50);
 }
@@ -2227,13 +2227,13 @@ async function confirmarApontar(){
     const pend = S.pedidos.filter(x=>x.maquina===p.maquina && !(S.apont[x.id]&&S.apont[x.id].feito) && !semChapa(x));
     const pos = ordenar(p.maquina, pend).findIndex(q=>q.p.id===id);
     dado = {feito:true, em:new Date().toISOString(), maquina:p.maquina, pos: pos<0?0:pos, produzido:tot, parciais};
-  } else dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais, reprogramar:true};
+  } else dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais};
   d.querySelector('[data-act="aptOk"]').disabled=true;
   const ok = await gravarApont(id, dado); d.querySelector('[data-act="aptOk"]').disabled=false; if (!ok) return;
   guardarHoras([todayISO()]);
   d.hidden=true; if (!document.getElementById("det").hidden) fecharOP();
   if (fin==="sim" && canEdit && fsOK() && !matchMedia("(pointer:coarse)").matches){ render(); gravarNaPlanilha(); return; } // computador: já tira das máquinas e lança em Produzido
-  toast(fin==="sim" ? `OP ${opN(p)} finalizada com ${fmtN(tot)} cx.` : `OP ${opN(p)}: ${fmtN(v)} cx apontadas. Saldo de ${fmtN(saldo(p))} cx volta para reprogramar.`);
+  toast(fin==="sim" ? `OP ${opN(p)} finalizada com ${fmtN(tot)} cx.` : `OP ${opN(p)}: ${fmtN(v)} cx apontadas (total produzido ${fmtN(tot)} cx). Continua programada com saldo de ${fmtN(Math.max(0,(Number(p.quantidade)||0)-tot))} cx.`);
   render();
 }
 document.getElementById("apt").addEventListener("click", e => { const b=e.target.closest("button"); if (e.target.id==="apt" || (b&&b.dataset.act==="aptCancel")) { e.currentTarget.hidden=true; return; } if (b&&b.dataset.act==="aptOk") confirmarApontar(); });
@@ -2243,8 +2243,8 @@ async function toggleFeito(b){
   const parciais=[...(a.parciais||[])]; const ult=parciais.pop();
   const tot=Math.max(0,(Number(a.produzido)||0)-(ult?ult.qtd:0));
   let dado;
-  if (a.feito) dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, pos:Number.isInteger(a.pos)?a.pos:0, produzido:tot, parciais, ...(parciais.length?{reprogramar:true}:{})};
-  else dado = tot ? {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais, reprogramar:!!a.reprogramar && parciais.length>0} : null;
+  if (a.feito) dado = {feito:false, em:new Date().toISOString(), maquina:p.maquina, pos:Number.isInteger(a.pos)?a.pos:0, produzido:tot, parciais};
+  else dado = tot ? {feito:false, em:new Date().toISOString(), maquina:p.maquina, produzido:tot, parciais} : null;
   b.disabled=true; const ok=await gravarApont(id, dado); b.disabled=false; if (!ok) return;
   toast(a.feito ? `OP ${opN(p)} voltou para a programação, na posição ${dado.pos+1}.` : `Último apontamento da OP ${opN(p)} desfeito.`);
   render();
